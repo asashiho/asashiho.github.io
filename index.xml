@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>ASA Blog</title>
+    <link>https://asashiho.github.io/</link>
+    <description>Recent content on ASA Blog</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>ja-jp</language>
+    <copyright>Your Copyright</copyright>
+    <lastBuildDate>Tue, 22 Oct 2019 00:00:00 +0000</lastBuildDate>
+    
+	<atom:link href="https://asashiho.github.io/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>KubernetesのHPA</title>
+      <link>https://asashiho.github.io/hpa/</link>
+      <pubDate>Tue, 22 Oct 2019 00:00:00 +0000</pubDate>
+      
+      <guid>https://asashiho.github.io/hpa/</guid>
+      <description>ここにブログを書きます。 HPAとはなんですかね。まるでわからんよね。 まったくわからんよね。 まったくわからんよね。 まったくわからんよね。 まったくわからんよね。 まったくわからんよね。 まったくわからんよね。 まったくわからんよね。 まったくわからんよね。
+1 2 3 4 5  public class Main { public static void main(String... args) { System.out.println(&amp;#34;Hello&amp;#34;);  } }   </description>
+    </item>
+    
+  </channel>
+</rss>
