@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.58.3" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>高可用性かつスケーラブルなKubernetesクラスターを運用するときに気を付けたいこと &middot; ASA Blog</title>
+  <meta name="description" content="" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://asashiho.github.io/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://asashiho.github.io/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://asashiho.github.io/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://asashiho.github.io/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+</head>
+
+  <body class="theme-base-0d ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://asashiho.github.io/"><h1>ASA Blog</h1></a>
+      <p class="lead">
+       Container,Kubernetes 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://asashiho.github.io/">Home</a> </li>
+        <li><a href="https://github.com/asashiho/"> Github </a></li><li><a href="https://www.linkedin.com/in/shiho-asa/"> LinkedIn </a></li>
+      </ul>
+    </nav>
+
+    <p>&copy; 2020. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>高可用性かつスケーラブルなKubernetesクラスターを運用するときに気を付けたいこと</h1>
+  <time datetime=2020-03-26T00:00:00Z class="post-date">Thu, Mar 26, 2020</time>
+  
+
+<p>お仕事でプリセールスをしているため、お客様やSIパートナー様といっしょに「<strong>ぜったいにサービスを止められないシステム</strong>」について議論することが多くあります。</p>
+
+<p>一方、クラウドはオンプレに比べてスケーラブルな構成をとることが得意です。したがって、ユーザーの利用が時間的にばらつきがあるシステムやスパイクアクセスが発生するシステムなどの場合は、クラウドを提案する良いチャンスだったりもします。</p>
+
+<p>このブログではそのようなニーズを満たすクラスターを運用するときに気を付けたいことや、私自身が検証していて気づいたことをホワイトボードに書く感覚で、だらだらと書きとめます。</p>
+
+<p>なお、本内容はたまたまAzureが提供するKubernetesマネージドサービスである「Azure Kubernetes Service（以下AKS）」を使って検証しましたが、基本的な考え方はやGoogle CloudのGKEやAWSのEKSなど他クラウドでも同じだとおもいます。</p>
+
+<h1 id="クラスターを物理障害から守るアーキテクチャ">クラスターを物理障害から守るアーキテクチャ</h1>
+
+<p>Kubernetesはシステムのインフラストラクチャー部分の多くを抽象化しオートヒーリングや宣言ベースのデプロイメントが可能で、高可用性なシステム構築を実現することが可能なコンテナオーケストレータです。
+が、その土台をささえる物理レイヤーはオンプレミスやクラウドにかかわらず、まじないや祈祷のたぐいで安定稼働しているわけではありません。</p>
+
+<p>多くの場合ハードウエアはデータセンターに収容され、電源/ネットワーク/冷却装置/サーバー/ストレージなどを構成しているため、高可用性システムを構築するにはSPOF（単一障害点）がないようインフラを設計する必要があります。</p>
+
+<p>またサーバー群にインストールするOSで脆弱性やバグなどが発生したときはバージョンアップなどを行う必要もあります。</p>
+
+<p>AzureのAKSはマネージドサービスではありますが、中でKuberntesのNodeをAzureのVMを使って構成しています。AzureのVMの可用性を高める手法として「<a href="https://docs.microsoft.com/ja-jp/azure/virtual-machines/linux/availability#availability-zones">可用性ゾーン</a>」というものがあります。</p>
+
+<p>ざっくりってしまうと、たとえばAzureの東日本リージョンにはそれぞれ異なる電源/ネットワーク/冷却装置が別々の3つのデータセンター(ゾーン)があります。そのためアプリを3つのデータセンターで分散して動かしておけば、たとえどこかのデータセンター内で障害が発生しても、システムが継続できる可能性が高くなります。</p>
+
+<p><img src="https://docs.microsoft.com/ja-jp/azure/includes/media/virtual-machines-common-regions-and-availability/three-zones-per-region.png" alt="az" /></p>
+
+<p>またこの可用性ゾーンは「<a href="https://docs.microsoft.com/ja-jp/azure/virtual-machines/linux/availability#update-domains">更新ドメイン</a>」をもっており、メンテナンスや再起動でシステムが停止するリスクを減らすこともできます。</p>
+
+<h2 id="物理的に分散したkubernetesクラスターを作成する">物理的に分散したKubernetesクラスターを作成する</h2>
+
+<p>AKSには、<a href="https://docs.microsoft.com/ja-jp/azure/aks/availability-zones">可用性ゾーンを使用するKuberntesクラスターを作成する</a>ことができます。この便利機能を使うと、次のようにKuberntesのNodeを分散して配置できます。</p>
+
+<p><img src="https://docs.microsoft.com/ja-jp/azure/aks/media/availability-zones/aks-availability-zones.png" alt="aksaz" /></p>
+
+<p>いくつかの<a href="https://docs.microsoft.com/ja-jp/azure/aks/availability-zones#limitations-and-region-availability">制限事項</a>がありますが、執筆時点(<sup>2020</sup>&frasl;<sub>03</sub>)では、次のリージョンの可用性ゾーンが使用できます。東日本リージョンでも利用できます。</p>
+
+<ul>
+<li>米国中部</li>
+<li>米国東部2</li>
+<li>米国東部</li>
+<li>フランス中部</li>
+<li>東日本</li>
+<li>北ヨーロッパ</li>
+<li>東南アジア</li>
+<li>英国南部</li>
+<li>西ヨーロッパ</li>
+<li>米国西部2</li>
+</ul>
+
+<p>ゾーンの停止時、つまりデータセンター丸ごと障害時には、手動またはオートスケーラーを使用してNodeを再調整でき、たとえ1つのゾーンが使用不可になっても、アプリケーションは引き続き実行されます。</p>
+
+<p>AKSクラスターの構築のしかたは<a href="https://docs.microsoft.com/ja-jp/azure/aks/availability-zones#create-an-aks-cluster-across-availability-zones">公式ドキュメント</a>のとおりですが、ポイントとしては以下のように、<code>az aks create</code>コマンドの引数に<code>--zones</code>オプションを指定します。これで3つのゾーンにNodeが分散されます。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">az aks create <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>    -g $RG_NAME <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>    -n $AKS_NAME <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>    --generate-ssh-keys <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>    --vm-set-type VirtualMachineScaleSets <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>    --load-balancer-sku standard <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>    --node-count <span style="color:#ae81ff">3</span> <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>    --zones <span style="color:#ae81ff">1</span> <span style="color:#ae81ff">2</span> <span style="color:#ae81ff">3</span></code></pre></div>
+
+<p>※ 今回は検証のためなので、&ndash;generate-ssh-keysオプションを指定していますが、本番環境ではきちんとSSH Keyを設定してください。</p>
+
+<p>クラスターは約15分ほどで起動します。次のコマンドでNodeが分散されているのを確認してください。3台のNodeが東日本リーションのjapaneast-1/japaneast-2/japaneast-3にそれぞれ1台ずつ配置されているのが分かります。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">$ kubectl describe nodes | grep -e <span style="color:#e6db74">&#34;Name:&#34;</span> -e <span style="color:#e6db74">&#34;failure-domain.beta.kubernetes.io/zone&#34;</span>
+
+<span style="color:#ae81ff">1</span>:Name:               aks-nodepool1-30480082-vmss000000
+<span style="color:#ae81ff">8</span>:                    failure-domain.beta.kubernetes.io/zone<span style="color:#f92672">=</span>japaneast-1
+<span style="color:#ae81ff">95</span>:Name:               aks-nodepool1-30480082-vmss000001
+<span style="color:#ae81ff">102</span>:                    failure-domain.beta.kubernetes.io/zone<span style="color:#f92672">=</span>japaneast-2
+<span style="color:#ae81ff">187</span>:Name:               aks-nodepool1-30480082-vmss000002
+<span style="color:#ae81ff">194</span>:                    failure-domain.beta.kubernetes.io/zone<span style="color:#f92672">=</span>japaneast-3</code></pre></div>
+
+<p><img src=".../2020-03-26-16-32-29.png" alt="" /></p>
+
+<h2 id="アプリのデプロイ">アプリのデプロイ</h2>
+
+<p>「物理的」に高可用性なクラスターが立ち上がったところで、3種類のサンプルアプリをデプロイしてみます。</p>
+
+<p>技術ブログだと「SampleA」「SampleB」「SampleC」をデプロイすれば十分に説明可能ですが、より臨場感と危機感を出すために以下の名前のアプリをデプロイします。</p>
+
+<ul>
+<li>shipping: 発送処理</li>
+<li>orders: オーダー受付処理</li>
+<li>payment: 決済処理</li>
+</ul>
+
+<p>なお、サンプルのPodはただのNgnixが立ち上がるだけのものです。レプリカ数は3としました。</p>
+
+<p>現在のNodeの構成は以下のようになっていて、3台がいずれもReadyなのが分かります。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">$ kubectl get no
+NAME                                STATUS   ROLES   AGE   VERSION
+aks-nodepool1-30480082-vmss000000   Ready    agent   59m   v1.14.8
+aks-nodepool1-30480082-vmss000001   Ready    agent   59m   v1.14.8
+aks-nodepool1-30480082-vmss000002   Ready    agent   59m   v1.14.8</code></pre></div>
+
+<p>ここに対して、次のコマンドでDaploymentをapplyします。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">$ kubectl apply -f orders-dep.yaml
+$ kubectl apply -f payment-dep.yaml
+$ kubectl apply -f shipping-dep.yaml</code></pre></div>
+
+<p>「aks-nodepool1-30480082-vmss000000」「aks-nodepool1-30480082-vmss000001」「aks-nodepool1-30480082-vmss000002」に分散されて、Podがスケジューリングされているのがわかります。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">$ kubectl get po --output wide
+NAME                        READY   STATUS    RESTARTS   AGE   IP            NODE                                NOMINATED NODE   READINESS GATES
+orders-64db48bc-cdccd       <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          19m   <span style="color:#ae81ff">10</span>.244.2.2    aks-nodepool1-30480082-vmss000002   &lt;none&gt;           &lt;none&gt;
+orders-64db48bc-grg7c       <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          11m   <span style="color:#ae81ff">10</span>.244.0.8    aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+orders-64db48bc-rj9b2       <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          19m   <span style="color:#ae81ff">10</span>.244.1.2    aks-nodepool1-30480082-vmss000001   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-dsxb6     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          19m   <span style="color:#ae81ff">10</span>.244.1.3    aks-nodepool1-30480082-vmss000001   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-fjjfb     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          19m   <span style="color:#ae81ff">10</span>.244.2.3    aks-nodepool1-30480082-vmss000002   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-j5fmp     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          11m   <span style="color:#ae81ff">10</span>.244.0.9    aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+shipping-6748cd9766-dq7b4   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          10m   <span style="color:#ae81ff">10</span>.244.0.10   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+shipping-6748cd9766-jrnk5   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          18m   <span style="color:#ae81ff">10</span>.244.2.4    aks-nodepool1-30480082-vmss000002   &lt;none&gt;           &lt;none&gt;
+shipping-6748cd9766-z65xs   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          18m   <span style="color:#ae81ff">10</span>.244.1.4    aks-nodepool1-30480082-vmss000001   &lt;none&gt;           &lt;none&gt;</code></pre></div>
+
+<p><img src="../2020-03-26-16-33-00.png" alt="" /></p>
+
+<p>これでバランスよく、3台のNodeに3種類アプリが1個づつ分散されて配置されました。</p>
+
+<p>しつこいですが、この3台のNodeは物理的には別々のデータセンターにいるので、データセンターのいずれかが障害になってもなんとか他のNodeで処理をサービスを継続できます。</p>
+
+<h1 id="スケーラブルなクラスターの運用">スケーラブルなクラスターの運用</h1>
+
+<p>さて、ここからが少しシステムの設計として頭を使って考えないといけないことが始まります。</p>
+
+<p>AKSにはクラスターのNodeをスケールする機能があります。利用者が少ない時はクラスターのNodeを減らしておくことでコスト最適化ができます。たとえば、手動でNodeを1台に減らすには次のコマンドを実行します。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">az aks scale -g $RG_NAME -n $AKS_NAME --node-count <span style="color:#ae81ff">1</span> --nodepool-name nodepool1</code></pre></div>
+
+<p>これにより、3台構成だったNodeが1台に減りました。</p>
+
+<blockquote>
+<p>AKSでは<a href="https://docs.microsoft.com/ja-jp/azure/aks/cluster-autoscaler">クラスタオートスケーラー</a>を使ってシステムの負荷に応じてNodeの台数を増減させることもできます。</p>
+</blockquote>
+
+<h2 id="なにが問題か">なにが問題か？</h2>
+
+<p>現在の構成を確認してみます。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">$ kubectl get no
+NAME                                STATUS   ROLES   AGE   VERSION
+aks-nodepool1-30480082-vmss000000   Ready    agent   95m   v1.14.8</code></pre></div>
+
+<p>現時点でorder/payment/shippingのすべてのPodは、Kuberntesのオートヒーリングの機能で稼働しているNode「aks-nodepool1-30480082-vmss000000」上にデプロイされているのが分かります。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">$ kubectl get po -o wide
+NAME                        READY   STATUS    RESTARTS   AGE     IP            NODE                                NOMINATED NODE   READINESS GATES
+orders-64db48bc-grg7c       <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          33m     <span style="color:#ae81ff">10</span>.244.0.8    aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+orders-64db48bc-jzlmc       <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          6m31s   <span style="color:#ae81ff">10</span>.244.0.13   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+orders-64db48bc-vghdh       <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          6m31s   <span style="color:#ae81ff">10</span>.244.0.14   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-9dctq     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          6m31s   <span style="color:#ae81ff">10</span>.244.0.15   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-j5fmp     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          33m     <span style="color:#ae81ff">10</span>.244.0.9    aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-v2cz7     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          6m31s   <span style="color:#ae81ff">10</span>.244.0.16   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+shipping-6748cd9766-9gtds   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          6m31s   <span style="color:#ae81ff">10</span>.244.0.12   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+shipping-6748cd9766-dq7b4   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          32m     <span style="color:#ae81ff">10</span>.244.0.10   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+shipping-6748cd9766-rzjsh   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          6m31s   <span style="color:#ae81ff">10</span>.244.0.11   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;</code></pre></div>
+
+<p><img src="../2020-03-26-16-33-22.png" alt="" /></p>
+
+<p>Nodeが可用性ゾーンに分散された3台構成から、1台構成に減ったわけなので、この状態で現状動いている1台「aks-nodepool1-30480082-vmss000000」が止まればシステム全停止になるのは、直感的に理解できます。</p>
+
+<h2 id="nodeをスケールしよう">Nodeをスケールしよう！</h2>
+
+<p>というわけで、Nodeを1台から元の3台構成に増やします。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">az aks scale -g $RG_NAME -n $AKS_NAME --node-count <span style="color:#ae81ff">3</span> --nodepool-name nodepool1</code></pre></div>
+
+<p>構成を見てみます。きちんと3台構成になっています。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">kubectl get no
+NAME                                STATUS   ROLES   AGE    VERSION
+aks-nodepool1-30480082-vmss000000   Ready    agent   104m   v1.14.8
+aks-nodepool1-30480082-vmss000003   Ready    agent   98s    v1.14.8
+aks-nodepool1-30480082-vmss000004   Ready    agent   100s   v1.14.8</code></pre></div>
+
+<p>どのゾーンにNodeが配置されているのかも確認します。Azureが責任をもって3台を「japaneast-1」「japaneast-2」「japaneast-3」の3つのゾーンにNodeを分散させています。</p>
+
+<p><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">kubectl describe nodes | grep -e <span style="color:#e6db74">&#34;Name:&#34;</span> -e <span style="color:#e6db74">&#34;failure-domain.beta.kubernetes.io/zone&#34;</span>
+
+<span style="color:#ae81ff">1</span>:Name:               aks-nodepool1-30480082-vmss000000
+<span style="color:#ae81ff">8</span>:                    failure-domain.beta.kubernetes.io/zone<span style="color:#f92672">=</span>japaneast-1
+<span style="color:#ae81ff">93</span>:Name:               aks-nodepool1-30480082-vmss000003
+<span style="color:#ae81ff">100</span>:                    failure-domain.beta.kubernetes.io/zone<span style="color:#f92672">=</span>japaneast-2
+<span style="color:#ae81ff">183</span>:Name:               aks-nodepool1-30480082-vmss000004
+<span style="color:#ae81ff">190</span>:                    failure-domain.beta.kubernetes.io/zone<span style="color:#f92672">=</span>japaneast-3</code></pre></div>
+めでたし。これで<strong>高可用性、かつスケーラブルなシステム</strong>に戻ったーー。</p>
+
+<p>&hellip;</p>
+
+<p>&hellip;</p>
+
+<p>&hellip;</p>
+
+<p><strong>とはならないので注意が必要</strong>です。</p>
+
+<p>次のコマンドでPodの配置を確認してみます。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">$ kubectl get po -o wide
+NAME                        READY   STATUS    RESTARTS   AGE   IP            NODE                                NOMINATED NODE   READINESS GATES
+orders-64db48bc-grg7c       <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          42m   <span style="color:#ae81ff">10</span>.244.0.8    aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+orders-64db48bc-jzlmc       <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          15m   <span style="color:#ae81ff">10</span>.244.0.13   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+orders-64db48bc-vghdh       <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          15m   <span style="color:#ae81ff">10</span>.244.0.14   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-9dctq     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          15m   <span style="color:#ae81ff">10</span>.244.0.15   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-j5fmp     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          41m   <span style="color:#ae81ff">10</span>.244.0.9    aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-v2cz7     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          15m   <span style="color:#ae81ff">10</span>.244.0.16   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+shipping-6748cd9766-9gtds   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          15m   <span style="color:#ae81ff">10</span>.244.0.12   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+shipping-6748cd9766-dq7b4   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          41m   <span style="color:#ae81ff">10</span>.244.0.10   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+shipping-6748cd9766-rzjsh   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          15m   <span style="color:#ae81ff">10</span>.244.0.11   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;</code></pre></div>
+
+<p><img src="../2020-03-26-16-33-47.png" alt="" /></p>
+
+<p>このようにorder/shipping/paymentのすべてのPodが「aks-nodepool1-30480082-vmss000000」におり、微動だにしていないのです。</p>
+
+<p>ということは、現時点で運悪く「aks-nodepool1-30480082-vmss000000」に障害が発生してしまうと、システムが全停止します。</p>
+
+<hr />
+
+<p>あらためて冷静に考えると</p>
+
+<ul>
+<li>可用性ゾーンに従い、Nodeは地理的に分散されている</li>
+<li>にもかかわらず、アプリケーションは1台に偏ってデプロイされている</li>
+</ul>
+
+<p>ということがおこっています。可用性ゾーンは物理Nodeにデプロイされるアプリが決まっている、トラディショナルなIaaSベースのアプリケーションアーキテクチャであれば有効に働きます。が、Kuberntesはその物理レイヤーの上に抽象化したレイヤーがあり、アプリケーションのスケジューリングをクラスターのコントロールプレーンがアルゴリズムに基づき自動的にデプロイされます。</p>
+
+<p>つまり、アーキテクチャとして物理的な可用性と論理的な可用性を考慮しなければいけないということが分かります。</p>
+
+<h2 id="アプリケーションがアップデードしたときは-どうスケジューリングされるか">アプリケーションがアップデードしたときは、どうスケジューリングされるか？</h2>
+
+<p>もうちょっと深堀りしてみていきます。</p>
+
+<p>現在、Nodeの1台にすべてのアプリがデプロイされているわけなのですが、そこはKuberntes。</p>
+
+<p>利用者する際はCI/CDパイプラインががっちり整備されており、常にアプリケーションの継続的デプロイメントが発生するものとします。</p>
+
+<p>ここでアプリ開発チームが「shipping」と「order」のアプリケーションをバージョンアップするパイプラインを実行したと仮定します。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">$ kubectl apply -f orders-dep.yaml
+$ kubectl apply -f shipping-dep.yaml</code></pre></div>
+
+<p>すると、新しい「shipping」と「order」のPodがクラスターにデプロイされます。</p>
+
+<p>Podの状態を確認してみましょう！！</p>
+
+<p>新しい「shipping」と「order」はみごとに3台のNodeにきちんと分散されてデプロイされました。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">$ kubectl get po -o wide
+
+NAME                        READY   STATUS    RESTARTS   AGE   IP            NODE                                NOMINATED NODE   READINESS GATES
+orders-56d5d9769f-gxvsl     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          43s   <span style="color:#ae81ff">10</span>.244.0.17   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+orders-56d5d9769f-n5w2t     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          54s   <span style="color:#ae81ff">10</span>.244.3.2    aks-nodepool1-30480082-vmss000004   &lt;none&gt;           &lt;none&gt;
+orders-56d5d9769f-r9ztr     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          54s   <span style="color:#ae81ff">10</span>.244.4.2    aks-nodepool1-30480082-vmss000003   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-9dctq     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          35m   <span style="color:#ae81ff">10</span>.244.0.15   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-j5fmp     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          62m   <span style="color:#ae81ff">10</span>.244.0.9    aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-v2cz7     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          35m   <span style="color:#ae81ff">10</span>.244.0.16   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+shipping-7954d7c6f8-27bw2   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          37s   <span style="color:#ae81ff">10</span>.244.0.18   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+shipping-7954d7c6f8-d5lr9   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          39s   <span style="color:#ae81ff">10</span>.244.3.3    aks-nodepool1-30480082-vmss000004   &lt;none&gt;           &lt;none&gt;
+shipping-7954d7c6f8-whsxd   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          39s   <span style="color:#ae81ff">10</span>.244.4.3    aks-nodepool1-30480082-vmss000003   &lt;none&gt;           &lt;none&gt;</code></pre></div>
+
+<p><img src="../2020-03-26-16-34-10.png" alt="" /></p>
+
+<p>が、、、、しかし。</p>
+
+<p>アプリケーションの更新がかからなかった「payment」のPodは3つとも引き続き「aks-nodepool1-30480082-vmss000000」にのみデプロイされたままです。</p>
+
+<p>現時点で「aks-nodepool1-30480082-vmss000000」が何らか障害が発生すると、paymentつまり<strong>決済処理のアプリケーションが一切機能しない</strong>ということが、起こりえます。</p>
+
+<p>しょぼん。悲しい。</p>
+
+<h1 id="kubernetesはどのようにpodをスケジューリングするのか">KubernetesはどのようにPodをスケジューリングするのか？</h1>
+
+<p>なぜ、このような動きをするのでしょうか？今回の挙動を、Kuberntesのしくみ目線で見ていきます。</p>
+
+<p>まず大前提として知っておきたいのが、Kubernetesのスケジューリングの方式についてです。</p>
+
+<p><img src="../2020-03-26-16-34-37.png" alt="" /></p>
+
+<h2 id="kubernetesのコントロールプレーン">Kubernetesのコントロールプレーン</h2>
+
+<p>ここでクラスターを管理するKubernetesのコントロールプレーンのしくみについてみていきます。</p>
+
+<p>Kubernetesは分散環境でサーバ群が協調してそれぞれの処理を行います。このかたまりのことをKubernetesクラスターと呼びます。Kubernetesで動作しているサーバおよび主なコンポーネントは次のとおりです。</p>
+
+<p><img src="../2020-03-26-16-34-57.png" alt="" /></p>
+
+<h3 id="master">Master</h3>
+
+<p>Kubernetesクラスター内のコンテナーを操作するためのサーバです。kubectlコマンドを使ってクラスターを構成したりリソースを操作したりする際は、マスターサーバがコマンドからのリクエストを受け取って処理を行います。複数台からなるKubernetesクラスター内のNodeのリソース使用状況を確認して、コンテナーを起動するNodeを自動的に選択します。Kubernetesがオーケストレーションツールと呼ばれるのも、このマスターサーバが複数台からなる分散したNodeをまとめて管理することで、あたかも1台のサーバであるかのようにふるまいます。　</p>
+
+<h4 id="kube-apiserver">kube-apiserver</h4>
+
+<p>Kubernetesのリソース情報を管理するためのフロントエンドのREST APIです。各コンポーネントからリソースの情報を受け取りetcd上に格納します。他のコンポーネントはこのetcdの情報にkube-apiserverを介してアクセスします。このkube-apiserverにアクセスするには、GUIツールやkubebtlコマンドを使います。また、アプリケーション内からkube-apiserverを呼び出すことも可能です。kube-apiserverは認証／認可の機能も持っています。</p>
+
+<h4 id="kube-scheduler">kube-scheduler</h4>
+
+<p>kube-schedulerはPodをどのNodeで動かすかを制御するコンポーネントです。kube-schedulerは、Nodeに割り当てられていないPodに対して、Kubernetesクラスターの状態を確認し、空きスペースを持つNodeを探してPodを実行させるスケジューリングを行います。</p>
+
+<h4 id="kube-controller-manager">kube-controller-manager</h4>
+
+<p>kube-controller-managerはKubernetesクラスターの状態を常に監視するコンポーネントです。定義ファイルで指定したものと実際のNodeやコンテナーで動作している状態をまとめて管理します。</p>
+
+<h4 id="etcd">etcd</h4>
+
+<p>Kubernetesクラスターの構成を保持する分散KVSです。Key-Value型でデータを管理します。どのようなPodをどう配置するかなどの情報を持ち、API Serverから参照されます。</p>
+
+<h3 id="node">Node</h3>
+
+<p>実際にコンテナーを動作させPodを稼働させるサーバです。AKSでは仮想マシン(VM)で構成され、通常は複数用意して、クラスターを構成します。Nodeの管理は、マスターサーバが行います。何台Nodeを用意するかは、システムの規模や負荷によって異なりますが台数が増えると可用性が向上します。なお、kubeproxyというコンポーネントも動作しますが、今回は長くなるので説明は省略。</p>
+
+<h4 id="kubelet">kubelet</h4>
+
+<p>kubeletは、Podの定義ファイルに従ってコンテナーを実行したり、ストレージをマウントしたりするエージェント機能を持ちます。またKubeletは、Nodeのステータスを定期的に監視する機能を持ちステータスが変わるとAPI Serverに通知します。</p>
+
+<h2 id="kubernetesスケジューラーのしくみ">Kubernetesスケジューラーのしくみ</h2>
+
+<p>クラスターの状態監視は、Masterのkube-controller-managerが行います。このkube-controller-managerには次の機能があります。</p>
+
+<ul>
+<li>ReplicationManager</li>
+<li>ReplicaSet/DaemonSet/Job controllers</li>
+<li>Deployment controller</li>
+<li>StatefulSet controller</li>
+<li>Node controller</li>
+<li>Service controller</li>
+<li>Endpoint controller</li>
+<li>Namespace controller
+etc</li>
+</ul>
+
+<p>この中でPodの状態はReplicationManagerが監視しています。もし、実際に稼働しているPodの数とetcdで管理しているマニュフェストファイルで定義したreplicasの数が一致していない場合は、Podの数を調整します。</p>
+
+<p>その際、kube-schedulerによって最適なNodeにPodがスケジューリングされます。実際に、Node上にPodを実行させるのは、kubeletが行います。kubeletは自Nodeに割り当てられた必要な数のPodを立ち上げます。</p>
+
+<p><img src="../2020-03-26-16-35-14.png" alt="" /></p>
+
+<p>では、このときの「<strong>③ Podを割り当てるNodeの選定</strong>」はどうやって決まるのでしょうか？</p>
+
+<h3 id="podのスケジューリング">Podのスケジューリング</h3>
+
+<p>Kubernetesでは、大きく分けて次の2つのルールでPodのスケジューリング先を決めます。</p>
+
+<h4 id="nodeフィルタリング">Nodeフィルタリング</h4>
+
+<p>PodにNodeSelectorを設定しているかどうかやPodに設定されたリソース要求と実際のリソースの空き状況などを見て割り当てるNodeを決めます。</p>
+
+<p>たとえば、あるNodeにラベルを設定しておき、ラベルの付いたNodeにPodを意図的にデプロイする、などの制御ができます。利用用途としては、クラスター内にGPUをもつインスタンスを立ち上げておき、おもたい計算処理を行うPodをGPUインスタンスに割り当てる、などがあります。あとは優先度の低いPodを低価格なプリエンプティブVMで動かし、クラスター全体のコンピューティングリソース使用率を上げたい、などもこれで実現できます。</p>
+
+<p><img src="../2020-03-26-16-35-26.png" alt="" /></p>
+
+<p>※ 今回のサンプルでは、PodにNodeSelectorは設定していません。</p>
+
+<h4 id="nodeの優先付け">Nodeの優先付け</h4>
+
+<p>同じ種類のPodが*できる限り複数のNodeに分散する*ようにしたり、CPUとメモリの使用率のバランスをとるような優先度をつけたりできます。これらにより、なるべく特定のNodeにかたよらないようバランスを見ながらスケジューリングできることが分かります。</p>
+
+<table>
+<thead>
+<tr>
+<th>値</th>
+<th>説明</th>
+</tr>
+</thead>
+
+<tbody>
+<tr>
+<td>SelectorSpreadPriority</td>
+<td>同一のService、StatefulSetや、ReplicaSetに属するPodを複数のホストをまたいで稼働させる</td>
+</tr>
+
+<tr>
+<td>InterPodAffinityPriority</td>
+<td>weightedPodAffinityTermの要素をイテレートして合計を計算したり、もし一致するPodAffinityTermがNodeに適合している場合は、”重み”を合計値に足す。最も高い合計値を持つNode(複数もあり)が候補となる</td>
+</tr>
+
+<tr>
+<td>LeastRequestedPriority</td>
+<td>要求されたリソースがより低いNodeを優先</td>
+</tr>
+
+<tr>
+<td>MostRequestedPriority</td>
+<td>要求されたリソースがより多いNodeを優先</td>
+</tr>
+
+<tr>
+<td>RequestedToCapacityRatioPriority</td>
+<td>デフォルトのリソーススコアリング関数を使用して、requestedToCapacityベースのResourceAllocationPriorityを作成する</td>
+</tr>
+
+<tr>
+<td>BalancedResourceAllocation</td>
+<td>バランスのとれたリソース使用量になるようにNodeを選択</td>
+</tr>
+
+<tr>
+<td>NodePreferAvoidPodsPriority</td>
+<td>Nodeの<code>scheduler.alpha.kubernetes.io/preferAvoidPods</code>というアノテーションに基づいてNodeの優先順位づけ行う</td>
+</tr>
+
+<tr>
+<td>NodeAffinityPriority</td>
+<td><code>PreferredDuringSchedulingIgnoredDuringExecution</code>の値によって示されたNode Affinityのスケジューリング性向に基づいてNodeの優先順位づけを行う</td>
+</tr>
+
+<tr>
+<td>TaintTolerationPriority</td>
+<td>Node上における許容できないTaintsの数に基づいて、全てのNodeの優先順位リストを準備する。このポリシーでは優先順位リストを考慮してNodeのランクを調整</td>
+</tr>
+
+<tr>
+<td>ImageLocalityPriority</td>
+<td>すでにPodに対するコンテナイメージをローカルにキャッシュしているNodeを優先</td>
+</tr>
+
+<tr>
+<td>ServiceSpreadingPriority</td>
+<td>特定のServiceに対するバックエンドのPodが、それぞれ異なるNodeで実行されるようにすることです。このポリシーではServiceのバックエンドのPodが既に実行されていないNode上にスケジュールするように優先します。これによる結果として、Serviceは単体のNode障害に対してより耐障害性が高まります。</td>
+</tr>
+
+<tr>
+<td>CalculateAntiAffinityPriorityMap</td>
+<td>このポリシーはPodのAnti-Affinityの実装に必要</td>
+</tr>
+
+<tr>
+<td>EqualPriorityMap</td>
+<td>全てのNodeに対して等しい重みを与える</td>
+</tr>
+</tbody>
+</table>
+
+<blockquote>
+<p>さらにアルゴリズムにご興味ある人はぜひ！
+<a href="https://github.com/kubernetes/community/blob/master/contributors/devel/sig-scheduling/scheduler_algorithm.md">Scheduler Algorithm in Kubernetes</a></p>
+</blockquote>
+
+<h3 id="aksの場合はどうなってるか">AKSの場合はどうなってるか</h3>
+
+<p><a href="https://docs.microsoft.com/ja-jp/azure/aks/availability-zones#verify-pod-distribution-across-zones">AKSのドキュメント-複数のゾーンへのポッドの分散を確認する</a>をみると、<code>failure-domain.beta.kubernetes.io/zone</code>ラベルを使用して、使用可能なゾーンにわたってPodを自動的に分散します。と書かれています。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">failure-domain.beta.kubernetes.io/zone<span style="color:#f92672">=</span>zone名</code></pre></div>
+
+<p>さらに、こちらのGitHubの<a href="https://github.com/MicrosoftDocs/azure-docs/issues/43715">issue</a>をみるとAKSがスケーリング時にNode間でゾーンに基づくスケジューリングをサポートしているかどうかが議論されていることもわかります。
+具体的には上記のラベルを見てSelectorSpreadPriorityにもとづき&rdquo;best effort&rdquo;で分散してデプロイさせていることを、うかがい知ることができます。</p>
+
+<hr />
+
+<p>これをふまえてさきほど、私が実験したときを思い返します。</p>
+
+<p>まずはじめに「shipping」「order」「Payment」をクラスターにデプロイしたとき、3種類×3個のPodがバラバラに配置されていたのがわかります。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">$ kubectl get po --output wide
+NAME                        READY   STATUS    RESTARTS   AGE   IP            NODE                                NOMINATED NODE   READINESS GATES
+orders-64db48bc-cdccd       <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          19m   <span style="color:#ae81ff">10</span>.244.2.2    aks-nodepool1-30480082-vmss000002   &lt;none&gt;           &lt;none&gt;
+orders-64db48bc-grg7c       <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          11m   <span style="color:#ae81ff">10</span>.244.0.8    aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+orders-64db48bc-rj9b2       <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          19m   <span style="color:#ae81ff">10</span>.244.1.2    aks-nodepool1-30480082-vmss000001   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-dsxb6     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          19m   <span style="color:#ae81ff">10</span>.244.1.3    aks-nodepool1-30480082-vmss000001   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-fjjfb     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          19m   <span style="color:#ae81ff">10</span>.244.2.3    aks-nodepool1-30480082-vmss000002   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-j5fmp     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          11m   <span style="color:#ae81ff">10</span>.244.0.9    aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+shipping-6748cd9766-dq7b4   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          10m   <span style="color:#ae81ff">10</span>.244.0.10   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+shipping-6748cd9766-jrnk5   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          18m   <span style="color:#ae81ff">10</span>.244.2.4    aks-nodepool1-30480082-vmss000002   &lt;none&gt;           &lt;none&gt;
+shipping-6748cd9766-z65xs   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          18m   <span style="color:#ae81ff">10</span>.244.1.4    aks-nodepool1-30480082-vmss000001   &lt;none&gt;           &lt;none&gt;</code></pre></div>
+
+<p><img src="../2020-03-26-16-35-45.png" alt="" /></p>
+
+<p>次にアプリを更新した「shipping」と「order」も3台のNodeにきちんと分散されてデプロイされました。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">$ kubectl get po -o wide
+
+NAME                        READY   STATUS    RESTARTS   AGE   IP            NODE                                NOMINATED NODE   READINESS GATES
+orders-56d5d9769f-gxvsl     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          43s   <span style="color:#ae81ff">10</span>.244.0.17   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+orders-56d5d9769f-n5w2t     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          54s   <span style="color:#ae81ff">10</span>.244.3.2    aks-nodepool1-30480082-vmss000004   &lt;none&gt;           &lt;none&gt;
+orders-56d5d9769f-r9ztr     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          54s   <span style="color:#ae81ff">10</span>.244.4.2    aks-nodepool1-30480082-vmss000003   &lt;none&gt;           &lt;none&gt;
+shipping-7954d7c6f8-27bw2   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          37s   <span style="color:#ae81ff">10</span>.244.0.18   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+shipping-7954d7c6f8-d5lr9   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          39s   <span style="color:#ae81ff">10</span>.244.3.3    aks-nodepool1-30480082-vmss000004   &lt;none&gt;           &lt;none&gt;
+shipping-7954d7c6f8-whsxd   <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          39s   <span style="color:#ae81ff">10</span>.244.4.3    aks-nodepool1-30480082-vmss000003   &lt;none&gt;           &lt;none&gt;</code></pre></div>
+
+<p><img src="../2020-03-26-16-35-59.png" alt="" /></p>
+
+<p>これは、AKSのコントロールプレーンがPodをスケジューリングする際に、Nodeに設定された<code>failure-domain.beta.kubernetes.io</code>を考慮したと考えることができます。</p>
+
+<h2 id="kube-deschesulerでpodを再スケジュール">kube-deschesulerでPodを再スケジュール</h2>
+
+<p>Kubernetesは非常に高度なしくみを用いて、物理Nodeを意識しながらPodを分散させてデプロイされているということがわかりましたが、なぜ今回はのアプリのみ分散されずに「aks-nodepool1-30480082-vmss000000」にだけ偏ってしまったのでしょうか？</p>
+
+<p>それは、Kubernetesのスケジューラーは<strong>Podがなんらかの理由で削除されない限り、Node間でPodを移動しない</strong>ためです。</p>
+
+<p>あらためてpayment Pod目線で冷静に挙動を見直してみます。</p>
+
+<p>まず、payment Podは初回のデプロイ時、AKSによりバランスよく3つのゾーンに分散して配置されました。その後クラスターのNode数が1台に縮退されたため、やむを得ず1台のNodeにPodが集まりました。さらにその後Podの更新がなかったため、上記の原則にしたがいNode間でPodを移動することなく、3つのPodとも「aks-nodepool1-30480082-vmss000000」にとどまり続けたのです。</p>
+
+<p>このPodの偏りを平準化するため<a href="https://github.com/kubernetes-sigs/descheduler/tree/master">kube-deschesuler</a>というものがあります。</p>
+
+<p>このkube-deschesulerは一部のNodeが使用されているか、使用されていない場合や一部のNodeに障害が発生し、Podが他のNodeに移動し、Podが偏ったときに移動可能なポッドを見つけて削除するものです。削除されたPodはKubernetesの通常のスケジューラによって再スケジュールされます。</p>
+
+<p>kube-deschesulerはKubernetesのJobまたはCronJobとして動作します。1回だけさっぱり整えたい！というときはJob、定期的にチェックして綺麗にしたい場合はCronJobにすればよいでしょう。</p>
+
+<p>今こんな感じでpayment Podが「aks-nodepool1-30480082-vmss000000」にかたまっています。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">$ kubectl get po -o wide
+NAME                        READY   STATUS    RESTARTS   AGE     IP            NODE                                NOMINATED NODE   READINESS GATES
+payment-c7ddbf474-9dctq     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          4h51m   <span style="color:#ae81ff">10</span>.244.0.15   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-j5fmp     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          5h18m   <span style="color:#ae81ff">10</span>.244.0.9    aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-v2cz7     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          4h51m   <span style="color:#ae81ff">10</span>.244.0.16   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;</code></pre></div>
+
+<p>deschedulerのGitHubのReadme.mdにしたがってクラスターにデプロイします。</p>
+
+<p><div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">$ git clone git@github.com:kubernetes-sigs/descheduler.git
+$ kubectl create -f kubernetes/rbac.yaml
+$ kubectl create -f kubernetes/configmap.yaml
+$ kubectl create -f kubernetes/job.yaml</code></pre></div>
+kube-system名前空間にJobがデプロイされます。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">k get job -n kube-system
+
+NAME              COMPLETIONS   DURATION   AGE
+descheduler-job   <span style="color:#ae81ff">1</span>/1           9s         2m52s</code></pre></div>
+
+<p>そして、payment Podの状況を見てみましょう。偏っていたPodがゾーンをまたがるNodeに分散されてデプロイされました。この状態であれば、いずれかのゾーンが全停止したとしても、他のゾーンでサービスを継続できることがわかります。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-zsh" data-lang="zsh">$ kubectl get po -o wide
+
+NAME                        READY   STATUS    RESTARTS   AGE     IP            NODE                                NOMINATED NODE   READINESS GATES
+payment-c7ddbf474-64ws9     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          2m14s   <span style="color:#ae81ff">10</span>.244.3.4    aks-nodepool1-30480082-vmss000004   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-86p7r     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          2m14s   <span style="color:#ae81ff">10</span>.244.4.5    aks-nodepool1-30480082-vmss000003   &lt;none&gt;           &lt;none&gt;
+payment-c7ddbf474-9dctq     <span style="color:#ae81ff">1</span>/1     Running   <span style="color:#ae81ff">0</span>          5h32m   <span style="color:#ae81ff">10</span>.244.0.15   aks-nodepool1-30480082-vmss000000   &lt;none&gt;           &lt;none&gt;</code></pre></div>
+
+<h2 id="kube-deschesulerのしくみ">kube-deschesulerのしくみ</h2>
+
+<p>この、kube-deeschedulerはどういう方法でかたよりを無くすかを決めることができます。全部で5つほどありますが、よく使われそうな2つを説明します。</p>
+
+<h4 id="removeduplicates">RemoveDuplicates</h4>
+
+<p>同じReplicaSetから作られたPodが、ひとつのNodeに複数配置されていた場合にPodを削除します。kube-scheduler先ほど説明したSelectorSpreadPriorityというNodeやゾーンに対して分散させるpriorityがあるため、Podを削除することで複数Nodeに分散させます。</p>
+
+<p>これを無効化したいときは、次のように設定します。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml">apiVersion: <span style="color:#e6db74">&#34;descheduler/v1alpha1&#34;</span>
+kind: <span style="color:#e6db74">&#34;DeschedulerPolicy&#34;</span>
+strategies:
+  <span style="color:#e6db74">&#34;RemoveDuplicates&#34;</span>:
+     enabled: <span style="color:#66d9ef">false</span></code></pre></div>
+
+<h4 id="lownodeutilization">LowNodeUtilization</h4>
+
+<p>リソースの利用率が高いNodeのPodをリソース利用率が低いNodeに再スケジュールします。リソースの使用率はCPU/メモリの状況、動いているPodの数を閾値として定義します。</p>
+
+<p>実際のマニュフェストをみると雰囲気が分かりやすいと思います。</p>
+
+<div class="highlight"><pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml">apiVersion: <span style="color:#e6db74">&#34;descheduler/v1alpha1&#34;</span>
+kind: <span style="color:#e6db74">&#34;DeschedulerPolicy&#34;</span>
+strategies:
+  <span style="color:#e6db74">&#34;LowNodeUtilization&#34;</span>:
+     enabled: <span style="color:#66d9ef">true</span>
+     params:
+       nodeResourceUtilizationThresholds:
+         thresholds:
+           <span style="color:#e6db74">&#34;cpu&#34;</span> : <span style="color:#ae81ff">20</span>
+           <span style="color:#e6db74">&#34;memory&#34;</span>: <span style="color:#ae81ff">20</span>
+           <span style="color:#e6db74">&#34;pods&#34;</span>: <span style="color:#ae81ff">20</span>
+         targetThresholds:
+           <span style="color:#e6db74">&#34;cpu&#34;</span> : <span style="color:#ae81ff">50</span>
+           <span style="color:#e6db74">&#34;memory&#34;</span>: <span style="color:#ae81ff">50</span>
+           <span style="color:#e6db74">&#34;pods&#34;</span>: <span style="color:#ae81ff">50</span></code></pre></div>
+
+<p>その他AntiAffinityに反しているPodを削除したりなどもできます。</p>
+
+<p>なお、kube-deschesulerではPodはevictionのしくみを使って削除されるため、PodDisruptionBudgetの設定が考慮されます。そして、PodのQosClassがBestEffortのものは/Bustrable/Guaranteedより先に削除されるというルールもあります。</p>
+
+<p>またkube-deschesulerは、以下のPodの削除の対象外となります。</p>
+
+<ul>
+<li>priorityClassNameが<code>system-cluster-critical</code>または<code>system-node-critical</code>に設定されているPod</li>
+<li>Deploymemt/ReplicaSet/Jobなどで管理されていないPod</li>
+<li>DaemonSetが作成したPod</li>
+<li>Local Storageを利用したPod</li>
+</ul>
+
+<p>冷静に考えれば当然ですが、DaemonSetが消されちゃったら困りますし、ストレージをマウントしているPodも要注意です。</p>
+
+<h1 id="おわりに">おわりに</h1>
+
+<p>とりとめのないだらだら長いブログになってしまいましたが、人類が実現したいことは「どこかしらで障害があったとしても、サービスを継続し続けること」「スケーラブルな基盤がほしい」です。</p>
+
+<p>そのための処理方式の1つとして、複数のデータセンターをまたいだ構成でKubernetesクラスターを物理的に分けて構築するというのを検討しましたが、考慮が必要でした。</p>
+
+<p>そもそも、今回の実験の中盤で<strong>KubernetesクラスターのNodeの数を1台</strong>にしました。当たり前ですが、これをやらなければPodが不必要に偏ることもありませんでしたし、kube-deschesulerに頼る必要もなかったわけです。</p>
+
+<p>いずれにせよ今回検証したようなパターンでの挙動は物理的なシステム構成だけでなく、Kubernetesのなかの論理的なしくみを理解していないといけません。</p>
+
+<p>というわけで、高い可用性が求められ、かつNodeの数の少ない小さなクラスターを運用するときは注意が必要です。</p>
+
+<p>また、今回のブログではディザスタリカバリーのことはまったく触れていませんが、たとえばAzureの場合だと<a href="https://docs.microsoft.com/ja-jp/azure/aks/operator-best-practices-multi-region">Azure Kubernetes Service (AKS) での事業継続とディザスター リカバリーに関するベスト プラクティス</a>というガイドも公開されています。</p>
+
+<hr />
+
+<p>すこし脱線ですが、Kubernetesを導入する際のアーキテクチャ設計は難しい問題です。可用性や拡張性などの設計ももちろんですが、クラスター内で動くアプリケーションの機能要件も考慮が必要です。技術的な観点だけでなく開発体制やスタイルなど組織構造も検討しなければいけません。AKSの場合、実践的なベストプラクティスが公式ドキュメントにまとまっています。</p>
+
+<blockquote>
+<p><a href="https://docs.microsoft.com/ja-jp/azure/aks/operator-best-practices-cluster-isolation">ベスト プラクティス ガイダンス</a></p>
+</blockquote>
+
+<p>さらに、あるクラウドがすべてダウンというケースもあり得ると思います。その際は、複数のクラウドやオンプレミスとのフェデレーションも検討が必要です。</p>
+
+<p>というわけで、わたしのクラウドジャーニーは続くわけです。</p>
+
+<p>みなさま、手洗いとうがいは忘れずに。</p>
+
+<h1 id="参考">参考：</h1>
+
+<ul>
+<li><a href="https://www.amazon.co.jp/dp/B07L94XGPY/">しくみがわかるKubernetes Azureで動かしながら学ぶコンセプトと実践知識</a></li>
+<li><a href="https://www.oreilly.co.jp/books/9784873119014/">Kubernetesで実践するクラウドネイティブDevOps</a></li>
+<li><a href="https://docs.microsoft.com/ja-jp/azure/aks/best-practices">Azure Kubernetes Service (AKS) でのアプリケーションの構築および管理のためのクラスター オペレーターと開発者のベスト プラクティス</a></li>
+<li><a href="https://torumakabe.github.io/post/k8s_descheduler/">Kubernetes DeschedulerでPodを再配置する</a></li>
+<li><a href="https://qiita.com/tkusumi/items/58fdadbe4053812cb44e">Kubernetes: スケジューラの動作</a></li>
+</ul>
+
+</div>
+
+
+    </main>
+
+    
+  </body>
+</html>
