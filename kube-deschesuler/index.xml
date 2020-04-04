@@ -1,24 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
-  <channel>
-    <title>Kube-deschesulers on ASA Blog</title>
-    <link>https://asashiho.github.io/kube-deschesuler/</link>
-    <description>Recent content in Kube-deschesulers on ASA Blog</description>
-    <generator>Hugo -- gohugo.io</generator>
-    <language>ja-jp</language>
-    <copyright>Your Copyright</copyright>
-    <lastBuildDate>Thu, 26 Mar 2020 00:00:00 +0000</lastBuildDate>
-    
-	<atom:link href="https://asashiho.github.io/kube-deschesuler/index.xml" rel="self" type="application/rss+xml" />
-    
-    
-    <item>
-      <title>高可用性かつスケーラブルなKubernetesクラスターを運用するときに気を付けたいこと</title>
-      <link>https://asashiho.github.io/kube-deschesuler/kube-deschesuler/</link>
-      <pubDate>Thu, 26 Mar 2020 00:00:00 +0000</pubDate>
-      
-      <guid>https://asashiho.github.io/kube-deschesuler/kube-deschesuler/</guid>
-      <description>お仕事でプリセールスをしているため、お客様やSIパートナー様といっしょに「ぜったいにサービスを止められないシステム」について議論することが多くあります。
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Kube-deschesulers on ASA Blog</title><link>https://asashiho.github.io/kube-deschesuler/</link><description>Recent content in Kube-deschesulers on ASA Blog</description><generator>Hugo -- gohugo.io</generator><language>ja-jp</language><copyright>Your Copyright</copyright><lastBuildDate>Thu, 26 Mar 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://asashiho.github.io/kube-deschesuler/index.xml" rel="self" type="application/rss+xml"/><item><title>高可用性かつスケーラブルなKubernetesクラスターを運用するときに気を付けたいこと</title><link>https://asashiho.github.io/kube-deschesuler/kube-deschesuler/</link><pubDate>Thu, 26 Mar 2020 00:00:00 +0000</pubDate><guid>https://asashiho.github.io/kube-deschesuler/kube-deschesuler/</guid><description>お仕事でプリセールスをしているため、お客様やSIパートナー様といっしょに「ぜったいにサービスを止められないシステム」について議論することが多くあります。
 一方、クラウドはオンプレに比べてスケーラブルな構成をとることが得意です。したがって、ユーザーの利用が時間的にばらつきがあるシステムやスパイクアクセスが発生するシステムなどの場合は、クラウドを提案する良いチャンスだったりもします。
 このブログではそのようなニーズを満たすクラスターを運用するときに気を付けたいことや、私自身が検証していて気づいたことをホワイトボードに書く感覚で、だらだらと書きとめます。
 なお、本内容はたまたまAzureが提供するKubernetesマネージドサービスである「Azure Kubernetes Service（以下AKS）」を使って検証しましたが、基本的な考え方はやGoogle CloudのGKEやAWSのEKSなど他クラウドでも同じだとおもいます。
@@ -29,11 +9,8 @@ AzureのAKSはマネージドサービスではありますが、中でKuberntes
 ざっくりってしまうと、たとえばAzureの東日本リージョンにはそれぞれ異なる電源/ネットワーク/冷却装置が別々の3つのデータセンター(ゾーン)があります。そのためアプリを3つのデータセンターで分散して動かしておけば、たとえどこかのデータセンター内で障害が発生しても、システムが継続できる可能性が高くなります。
 またこの可用性ゾーンは「更新ドメイン」をもっており、メンテナンスや再起動でシステムが停止するリスクを減らすこともできます。
 物理的に分散したKubernetesクラスターを作成する AKSには、可用性ゾーンを使用するKuberntesクラスターを作成することができます。この便利機能を使うと、次のようにKuberntesのNodeを分散して配置できます。
-いくつかの制限事項がありますが、執筆時点(2020&amp;frasl;03)では、次のリージョンの可用性ゾーンが使用できます。東日本リージョンでも利用できます。
- 米国中部 米国東部2 米国東部 フランス中部 東日本 北ヨーロッパ 東南アジア 英国南部 西ヨーロッパ 米国西部2  ゾーンの停止時、つまりデータセンター丸ごと障害時には、手動またはオートスケーラーを使用してNodeを再調整でき、たとえ1つのゾーンが使用不可になっても、アプリケーションは引き続き実行されます。
+いくつかの制限事項がありますが、執筆時点(2020/03)では、次のリージョンの可用性ゾーンが使用できます。東日本リージョンでも利用できます。
+米国中部 米国東部2 米国東部 フランス中部 東日本 北ヨーロッパ 東南アジア 英国南部 西ヨーロッパ 米国西部2 ゾーンの停止時、つまりデータセンター丸ごと障害時には、手動またはオートスケーラーを使用してNodeを再調整でき、たとえ1つのゾーンが使用不可になっても、アプリケーションは引き続き実行されます。
 AKSクラスターの構築のしかたは公式ドキュメントのとおりですが、ポイントとしては以下のように、az aks createコマンドの引数に--zonesオプションを指定します。これで3つのゾーンにNodeが分散されます。
-az aks create \  -g $RG_NAME \  -n $AKS_NAME \  --generate-ssh-keys \  --vm-set-type VirtualMachineScaleSets \  --load-balancer-sku standard \  --node-count 3 \  --zones 1 2 3 ※ 今回は検証のためなので、&amp;ndash;generate-ssh-keysオプションを指定していますが、本番環境ではきちんとSSH Keyを設定してください。</description>
-    </item>
-    
-  </channel>
-</rss>
+az aks create \ -g $RG_NAME \ -n $AKS_NAME \ --generate-ssh-keys \ --vm-set-type VirtualMachineScaleSets \ --load-balancer-sku standard \ --node-count 3 \ --zones 1 2 3 ※ 今回は検証のためなので、&amp;ndash;generate-ssh-keysオプションを指定していますが、本番環境ではきちんとSSH Keyを設定してください。
+クラスターは約15分ほどで起動します。次のコマンドでNodeが分散されているのを確認してください。3台のNodeが東日本リーションのjapaneast-1/japaneast-2/japaneast-3にそれぞれ1台ずつ配置されているのが分かります。</description></item></channel></rss>
