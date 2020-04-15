@@ -1,22 +1,167 @@
-<!doctype html><html xmlns=http://www.w3.org/1999/xhtml xml:lang=ja-jp lang=ja-jp><head><link href=https://gmpg.org/xfn/11 rel=profile><meta charset=utf-8><meta name=generator content="Hugo 0.64.0"><meta name=viewport content="width=device-width,initial-scale=1"><title>KubernetesのHPA &#183; ASA Blog</title><meta name=description content><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/print.css media=print><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/poole.css><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/syntax.css><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/hyde.css><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700"><link type=text/css rel=stylesheet href=https://use.fontawesome.com/releases/v5.0.6/css/all.css><link type=text/css rel=stylesheet href=https://aakira.app/css/custom.css><link rel=apple-touch-icon-precomposed sizes=144x144 href=/apple-touch-icon-144-precomposed.png><link rel="shortcut icon" href=/favicon.png></head><body class=theme-base-0d><aside class=sidebar><div class="container sidebar-sticky"><div class=sidebar-about><a href=https://asashiho.github.io/><h1>ASA Blog</h1></a><p class=lead>enjoy a laid-back life</p></div><nav><ul class=sidebar-nav><li><a href=https://asashiho.github.io/>Home</a></li><li><a href=https://github.com/asashiho/>GitHub</a></li><li><a href=https://www.linkedin.com/in/shiho-asa/>LinkedIn</a></li></ul></nav><p>&copy; 2020. All rights reserved.</p></div></aside><main class="content container"><div class=post><h1>KubernetesのHPA</h1><time datetime=2019-10-22T00:00:00Z class=post-date>Tue, Oct 22, 2019</time>
-<a href="http://twitter.com/intent/tweet?url=https%3a%2f%2fasashiho.github.io%2fhpa%2f&text=Kubernetes%e3%81%aeHPA" target=_blank title=Tweet><i class="fab fa-twitter"></i></a>&ensp;
-<a href="http://www.facebook.com/sharer.php?u=https%3a%2f%2fasashiho.github.io%2fhpa%2f&t=Kubernetes%e3%81%aeHPA" target=_blank title=Facebook><i class="fab fa-facebook"></i></a>&ensp;
-<a href="https://plus.google.com/share?url=https%3a%2f%2fasashiho.github.io%2fhpa%2f" target=_blank title=google+><i class="fab fa-google-plus"></i></a><hr><p>ここにブログを書きます。
-HPAとはなんですかね。まるでわからんよね。
-まったくわからんよね。
-まったくわからんよね。
-まったくわからんよね。
-まったくわからんよね。
-まったくわからんよね。
-まったくわからんよね。
-まったくわからんよね。
-まったくわからんよね。</p><div class=highlight><div style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><table style=border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block><tr><td style=vertical-align:top;padding:0;margin:0;border:0><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">1
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">2
-</span><span style=display:block;width:100%;background-color:#3c3d38><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">3
-</span></span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">4
-</span><span style="margin-right:.4em;padding:0 .4em;color:#7f7f7f">5
-</span></code></pre></td><td style=vertical-align:top;padding:0;margin:0;border:0;width:100%><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-java data-lang=java><span style=color:#66d9ef>public</span> <span style=color:#66d9ef>class</span> <span style=color:#a6e22e>Main</span> <span style=color:#f92672>{</span>
-    <span style=color:#66d9ef>public</span> <span style=color:#66d9ef>static</span> <span style=color:#66d9ef>void</span> <span style=color:#a6e22e>main</span><span style=color:#f92672>(</span>String<span style=color:#f92672>.</span><span style=color:#f92672>.</span><span style=color:#f92672>.</span> args<span style=color:#f92672>)</span> <span style=color:#f92672>{</span>
-<span style=display:block;width:100%;background-color:#3c3d38>       System<span style=color:#f92672>.</span><span style=color:#a6e22e>out</span><span style=color:#f92672>.</span><span style=color:#a6e22e>println</span><span style=color:#f92672>(</span><span style=color:#e6db74>&#34;Hello&#34;</span><span style=color:#f92672>)</span><span style=color:#f92672>;</span>
-</span>    <span style=color:#f92672>}</span>
-<span style=color:#f92672>}</span></code></pre></td></tr></table></div></div></div></main></body></html>
+<!doctype html><html xmlns=http://www.w3.org/1999/xhtml xml:lang=ja-jp lang=ja-jp><head><link href=https://gmpg.org/xfn/11 rel=profile><meta charset=utf-8><meta name=generator content="Hugo 0.64.0"><meta name=viewport content="width=device-width,initial-scale=1"><title>常微分方程式の初期値問題 &#183; ASA Blog</title><meta name=description content><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/print.css media=print><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/poole.css><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/syntax.css><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/hyde.css><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700"><link type=text/css rel=stylesheet href=https://use.fontawesome.com/releases/v5.0.6/css/all.css><link type=text/css rel=stylesheet href=https://aakira.app/css/custom.css><link rel=apple-touch-icon-precomposed sizes=144x144 href=/apple-touch-icon-144-precomposed.png><link rel="shortcut icon" href=/favicon.png></head><body class=theme-base-0d><aside class=sidebar><div class="container sidebar-sticky"><div class=sidebar-about><a href=https://asashiho.github.io/><h1>ASA Blog</h1></a><p class=lead>enjoy a laid-back life</p></div><nav><ul class=sidebar-nav><li><a href=https://asashiho.github.io/>Home</a></li><li><a href=https://github.com/asashiho/>GitHub</a></li><li><a href=https://www.linkedin.com/in/shiho-asa/>LinkedIn</a></li></ul></nav><p>&copy; 2020. All rights reserved.</p></div></aside><main class="content container"><div class=post><h1>常微分方程式の初期値問題</h1><time datetime=2019-10-22T00:00:00Z class=post-date>Tue, Oct 22, 2019</time>
+<a href="http://twitter.com/intent/tweet?url=https%3a%2f%2fasashiho.github.io%2fhpa%2f&text=%e5%b8%b8%e5%be%ae%e5%88%86%e6%96%b9%e7%a8%8b%e5%bc%8f%e3%81%ae%e5%88%9d%e6%9c%9f%e5%80%a4%e5%95%8f%e9%a1%8c" target=_blank title=Tweet><i class="fab fa-twitter"></i></a>&ensp;
+<a href="http://www.facebook.com/sharer.php?u=https%3a%2f%2fasashiho.github.io%2fhpa%2f&t=%e5%b8%b8%e5%be%ae%e5%88%86%e6%96%b9%e7%a8%8b%e5%bc%8f%e3%81%ae%e5%88%9d%e6%9c%9f%e5%80%a4%e5%95%8f%e9%a1%8c" target=_blank title=Facebook><i class="fab fa-facebook"></i></a>&ensp;
+<a href="https://plus.google.com/share?url=https%3a%2f%2fasashiho.github.io%2fhpa%2f" target=_blank title=google+><i class="fab fa-google-plus"></i></a><hr><p>ここでは、数値解析の応用分野である構造解析や熱流体解析などのエンジニアリングシミュレーションの基本となる、常微分方程式の初期値問題に関する簡単な数値解析を紹介します。</p><p>$$
+\dfrac{dy}{dx}=f(x,y,y&rsquo;,y&rsquo;',\cdot \cdot \cdot,y^{m-1})
+$$</p><p>ここで区間$[a,b]$における$x=a$での$m$個の初期値を与え</p><p>$$
+y(a)=y_0,; y&rsquo;(a)=y&rsquo;_0,; \cdot \cdot \cdot,y^{(m-1)}(a)= y^{m-1}
+$$</p><p>で関数$y$を求める問題を<strong>初期値問題</strong>と言います。</p><p>ここでもっとも簡単な1階常微分方程式の初期値問題を考えます。</p><p>$$
+\dfrac{dy}{dx} =f(x,y)
+$$</p><p>ここで$x$の解析領域$[a,b]$を間隔$h$で$n=(b-a)/h$分割して、$x,x_1,x_2,\cdot \cdot \cdot,x_n$からなる区分$i(x_i \leqq x \leqq x_{i+1})$で積分すると次の式になります。</p><p>$$
+\int_{x_{i}}^{x_{i+1}} \dfrac {dx}{dx}dx =\int_{x_{i}}^{x_{i+1}} f(x,y) dx
+$$
+これを代数方程式で表すと
+$$
+y_{i+1} = y_{i} + \int_{x_{i}}^{x_{i+1}} f(x,y) dx
+$$
+となり、初期値$(x_0,y_0)$を与えて順次解くことで近似解が数列${y_i}$として求められます。</p><p>この差分式は$h,x_{i},y_{i}$の値を用いた増分関数$k(x_i,y_i,h)$と刻み幅$h$との積として表されます。</p><p>$$
+y_{i+1} = y_{i} + hk(x_i,y_i,h)
+$$</p><p>このように、厳密解ではなく代数方程式による近似解を求めることを数値解析と呼びます。数値解析は、数学や物理学の分野で代数的な方法で解を得ることが不可能な解析学上の問題を数値を用いて近似的に解くときに用いられ、主に計算機をつかって近似解を求めます。</p><p>今回は例題として、以下の常微分方程式</p><pre><code class=language-math data-lang=math>\begin{equation}
+\dfrac{dy}{dx} = xy
+\end{equation}
+</code></pre><p>に初期値$y(0)=1$を与えて、Pythonでいくつかの手法で数値解析してみます！</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-iq.py data-lang=iq.py><span style=color:#75715e># 導関数</span>
+<span style=color:#66d9ef>def</span> <span style=color:#a6e22e>divf</span>(x,y):
+    <span style=color:#66d9ef>return</span>  x <span style=color:#f92672>*</span> y
+</code></pre></div><h1 id=まずは厳密解を求める>まずは厳密解を求める</h1><p>今回の例題の常微分方程式は、数値解析するまでもなく手計算で厳密解を求めることができますので、まずは手計算してみます。</p><p>常微分方程式を次のように式変形します。
+$$
+\dfrac {dy}{dx}=xy\rightarrow \dfrac {dy}{y}=xdx
+$$
+ここで、両辺を積分してみます。
+$$
+\int \dfrac {dy}{y}=\int xdx
+$$
+積分の公式をつかうと
+$$
+ln|y|=\dfrac{1}{2}x^2 +C
+$$
+となります。（ただしCは任意定数）
+よって解は</p><p>$$
+y = Ce^{1/2x^2}
+$$</p><p>です。このぐらいの方程式で自然現象がうまくモデル化できれば人類はさほど苦労しないのですが、そうは甘くは無いので、、、厳密解が求まらないものを近似的に解くために数値解析をしていきます。</p><h1 id=オイラー法で近似解を求める>オイラー法で近似解を求める</h1><p>関数$y(x)$の$x_i$まわりにおけるテイラー展開は次の式になります。</p><p>$$
+y(x_{i+1}) = y(x_i) + hy&rsquo;(x_i) + \dfrac{h^2}{2}y&rsquo;'(x_i)+ \cdot \cdot \cdot
+$$</p><p>ここで、$y&rsquo;(x_i)$を$f(x_i,y_i)$で、$y(x_i),y(x_{i+1})$を近似解$y_i,y_{i+1}$であらわすと</p><p>$$
+y_{i+1} = y_i +hf(x_i,y_i)+\dfrac{h^2}{2}f&rsquo;(x_i,y_i)+ \cdot \cdot \cdot
+$$</p><p>となります。この右辺第3項以降を無視して局所打切り誤差を$O(h^2)$とする差分方程式をオイラー法と呼びます。</p><p>$$
+y_{i+1} = y_i +hf(x_i,y_i)
+$$</p><p>すごくシンプルです。</p><p>Pythonでオイラー法を実装するとつぎのようになります。$x$,$y$で初期値、刻み幅を$h$、$x$の最大値を$b$としています。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-euler.py data-lang=euler.py><span style=color:#75715e># Euler法</span>
+<span style=color:#66d9ef>def</span> <span style=color:#a6e22e>euler</span>(x, y, h, b):
+  x_ap <span style=color:#f92672>=</span> [x]
+  y_ap <span style=color:#f92672>=</span> [y]
+
+  <span style=color:#66d9ef>while</span> x <span style=color:#f92672>&lt;</span><span style=color:#f92672>=</span> b:
+
+    y <span style=color:#f92672>+</span><span style=color:#f92672>=</span> h <span style=color:#f92672>*</span> divf(x,y)
+    x <span style=color:#f92672>+</span><span style=color:#f92672>=</span> h
+    y_ap<span style=color:#f92672>.</span>append(y)
+    x_ap<span style=color:#f92672>.</span>append(x)
+    
+  <span style=color:#66d9ef>return</span> x_ap, y_ap
+</code></pre></div><p>グラフを書いてみます。Eulerでプロットした紫がオイラー法で解いた近似解でanalyticalで表した緑の曲線が厳密解です。ずれてますね、だいぶ:sweat_smile:</p><p><img src=https://qiita-image-store.s3.amazonaws.com/0/106267/1347a6ab-42f0-edd4-885b-2e7bebeaf05f.png alt=image.png></p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-euler.py data-lang=euler.py><span style=color:#f92672>import</span> matplotlib.pyplot <span style=color:#f92672>as</span> plt
+<span style=color:#f92672>import</span> numpy <span style=color:#f92672>as</span> np
+
+<span style=color:#75715e># グラフ領域の定義</span>
+fig <span style=color:#f92672>=</span> plt<span style=color:#f92672>.</span>figure(figsize<span style=color:#f92672>=</span>(<span style=color:#ae81ff>10</span>,<span style=color:#ae81ff>10</span>))
+ax <span style=color:#f92672>=</span> fig<span style=color:#f92672>.</span>add_subplot(<span style=color:#ae81ff>1</span>,<span style=color:#ae81ff>1</span>,<span style=color:#ae81ff>1</span>)
+
+h <span style=color:#f92672>=</span> <span style=color:#ae81ff>0.01</span>
+b <span style=color:#f92672>=</span> <span style=color:#ae81ff>0.5</span>
+
+<span style=color:#75715e># オイラー法のグラフ</span>
+x_a , y_a <span style=color:#f92672>=</span> euler(<span style=color:#ae81ff>0.0</span>, <span style=color:#ae81ff>1.0</span>, h, b)
+ax<span style=color:#f92672>.</span>scatter(x_a, y_a, c<span style=color:#f92672>=</span><span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>purple</span><span style=color:#e6db74>&#39;</span>, label<span style=color:#f92672>=</span><span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>Euler</span><span style=color:#e6db74>&#39;</span>)
+
+
+<span style=color:#75715e># 厳密解のプロット</span>
+x_analytical <span style=color:#f92672>=</span> np<span style=color:#f92672>.</span>linspace(<span style=color:#ae81ff>0</span>, b, <span style=color:#ae81ff>100</span>)
+y_analytical <span style=color:#f92672>=</span> np<span style=color:#f92672>.</span>exp(x_analytical <span style=color:#f92672>*</span> x_analytical <span style=color:#f92672>*</span> <span style=color:#ae81ff>0.5</span>)
+ax<span style=color:#f92672>.</span>plot(x_analytical,y_analytical,label<span style=color:#f92672>=</span><span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>analytical</span><span style=color:#e6db74>&#39;</span>, c<span style=color:#f92672>=</span><span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>green</span><span style=color:#e6db74>&#34;</span>)
+
+
+<span style=color:#75715e># グラフタイトルなどの表示</span>
+ax<span style=color:#f92672>.</span>set_title(<span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>Euler</span><span style=color:#e6db74>&#39;</span>)
+ax<span style=color:#f92672>.</span>set_xlabel(<span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>x</span><span style=color:#e6db74>&#39;</span>)
+ax<span style=color:#f92672>.</span>set_ylabel(<span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>y</span><span style=color:#e6db74>&#39;</span>)
+ax<span style=color:#f92672>.</span>legend(loc<span style=color:#f92672>=</span><span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>best</span><span style=color:#e6db74>&#39;</span>)
+ax<span style=color:#f92672>.</span>grid(True) 
+</code></pre></div><p>数値解析での解析精度は刻み幅$h$に大きく依存します。一般に$h$が小さいほど精度は向上しますが計算回数は$h$に逆比例して増します。また$h$が小さすぎると丸め誤差により誤差が増加したりもします。</p><p>Euler法は単純な計算で近似解を求めることができるので数値計算の理解というところでは分かりやすいのですが、誤差が非常に大きいため実用的ではありません。なので、さらに精度の良い手法をかんがえます。</p><h1 id=ホイン法で近似解を求める>ホイン法で近似解を求める</h1><p>Eulerは始点における曲線の勾配と刻み幅$h$との積により次の点を予測してます。もし$x_{i+1}$での勾配が予測できればより精度の高い積分ができます。</p><p>つまり
+$$
+　y_{i+1}=y_i +\dfrac{h}{2} f(x_i,y_i) + \dfrac{h}{2}f(x_{i+1},y_{i+1})
+$$
+とし、未知の$f(x_{i+1},y_{i+1})$にオイラーの公式で与えられる値を用いる方法を**ホイン法**といいます。</p><p>Pythonでホイン法を実装するとつぎのようになります。$x$,$y$で初期値、刻み幅を$h$、$x$の最大値を$b$としています。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-imp_euler.py data-lang=imp_euler.py><span style=color:#75715e># ホイン法</span>
+<span style=color:#66d9ef>def</span> <span style=color:#a6e22e>imp_euler</span>(x, y, h, b):
+  x_ap <span style=color:#f92672>=</span> [x]
+  y_ap <span style=color:#f92672>=</span> [y]
+
+  <span style=color:#66d9ef>while</span> x <span style=color:#f92672>&lt;</span><span style=color:#f92672>=</span> b:
+    
+    y_1 <span style=color:#f92672>=</span> y <span style=color:#f92672>+</span> h <span style=color:#f92672>*</span> divf(x,y)
+    y <span style=color:#f92672>+</span><span style=color:#f92672>=</span> (divf(x,y) <span style=color:#f92672>+</span> ((x <span style=color:#f92672>+</span> h) <span style=color:#f92672>*</span> y_1)) <span style=color:#f92672>*</span> h <span style=color:#f92672>/</span> <span style=color:#ae81ff>2.</span>
+    x <span style=color:#f92672>+</span><span style=color:#f92672>=</span> h
+    
+    y_ap<span style=color:#f92672>.</span>append(y)
+    x_ap<span style=color:#f92672>.</span>append(x)
+    
+  <span style=color:#66d9ef>return</span> x_ap, y_ap
+</code></pre></div><p>またまたグラフを見てみましょう。
+<img src=https://qiita-image-store.s3.amazonaws.com/0/106267/3b6873bb-0216-c72e-4b43-cfc0e5c7dc02.png alt=image.png></p><p>オイラー法に比べるとずいぶん誤差が小さいのがわかります。もうひと頑張り！</p><h1 id=ルンゲクッタ法で近似解を求める>ルンゲクッタ法で近似解を求める</h1><p>関数$y(x)$を$x=x_i$でテイラー展開すると次の式になります。</p><p>$$
+y(x) = y(x_i)+(x-x_i)y&rsquo;(x_i) + \dfrac{(x-x_i)^2}{2!}y&rsquo;'(x_i)+\cdot \cdot \cdot
+$$</p><p>ここで、$x=x_{i+1}=x_i+h$とすると
+$$
+y(x_{i+1})=y(x_i) + hy&rsquo;(x_i) + \dfrac{h^2}{2!}y&rsquo;'(x_i)+ \cdot \cdot
+$$
+となります。ここで</p><pre><code class=language-math data-lang=math>\begin{eqnarray}
+k_1 &amp;=&amp; hf(x_i,y_i) \\
+k_2 &amp;=&amp; hf(x_i+a_{1}h,y_i + b_1h) \\
+k_3 &amp;=&amp; hf(x_i+a_{2}h,y_i + b_{21}k_1 + b_{22}k_2) \\
+k_4 &amp;=&amp; hf(x_0+a_{3}h,y_i + b_{31}k_1 + b_{32}k_2 +b_{33}k_3) 
+\end{eqnarray}
+</code></pre><p>とし、
+$$
+y_{i+1} = y_i +c_ik_1 + c_2k_2 + c_3k_3 + c_4k_4
+$$
+として解く方法を、**ルンゲクッタ法**と呼びます。</p><p>ルンゲクッタ法にはいろいろな種類があり、それによって$c$の値が異なるのですが、一番有名な4段4次精度陽的ルンゲクッタ法は、初期条件を$(x_0,y_0)$とし、刻み幅を$h$とすると</p><pre><code class=language-math data-lang=math>\begin{eqnarray}
+x_{i+1} &amp;=&amp; x_i +h \\
+y_{i+1} &amp;=&amp; y_i +\dfrac{1}{6}(k1 + 2k_2 + 2k_3 +k_4)
+\end{eqnarray}
+</code></pre><p>であわらされます。</p><p>ここで4段4次精度陽的ルンゲクッタ法は、係数$k$をそれぞれ</p><pre><code class=language-math data-lang=math>\begin{eqnarray}
+k_1 &amp;=&amp; f(x_i,y_i)h \\
+k_2 &amp;=&amp; f(x_i + \dfrac{h}{2},y_i + \dfrac{k_1}{2})h \\
+k_3 &amp;=&amp; f(x_i + \dfrac{h}{2},y_i + \dfrac{k_2}{2})h \\
+k_4 &amp;=&amp; f(x_i + h,y_i + k_3)h
+\end{eqnarray}
+</code></pre><p>として解を求めます。</p><p>4段4次精度陽的ルンゲクッタ法をPythonで実装するとこんな感じです。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-rk4.py data-lang=rk4.py><span style=color:#75715e># RK4法</span>
+<span style=color:#66d9ef>def</span> <span style=color:#a6e22e>rk4</span>(x, y, h, b):
+  x_ap <span style=color:#f92672>=</span> [x]
+  y_ap <span style=color:#f92672>=</span> [y]
+
+  <span style=color:#66d9ef>while</span> x <span style=color:#f92672>&lt;</span><span style=color:#f92672>=</span> x_max:
+    
+    k1 <span style=color:#f92672>=</span> h <span style=color:#f92672>*</span> divf(x,y)
+    k2 <span style=color:#f92672>=</span> h <span style=color:#f92672>*</span> ((x <span style=color:#f92672>+</span> (h <span style=color:#f92672>/</span> <span style=color:#ae81ff>2.0</span>)) <span style=color:#f92672>*</span> (y <span style=color:#f92672>+</span> (k1 <span style=color:#f92672>/</span> <span style=color:#ae81ff>2.0</span>)))
+    k3 <span style=color:#f92672>=</span> h <span style=color:#f92672>*</span> ((x <span style=color:#f92672>+</span> (h <span style=color:#f92672>/</span> <span style=color:#ae81ff>2.0</span>)) <span style=color:#f92672>*</span> (y <span style=color:#f92672>+</span> (k2 <span style=color:#f92672>/</span> <span style=color:#ae81ff>2.0</span>)))
+    k4 <span style=color:#f92672>=</span> h <span style=color:#f92672>*</span> ((x <span style=color:#f92672>+</span> h) <span style=color:#f92672>*</span> (y <span style=color:#f92672>+</span> k3))
+    y <span style=color:#f92672>+</span><span style=color:#f92672>=</span> (k1 <span style=color:#f92672>+</span> <span style=color:#ae81ff>2.0</span> <span style=color:#f92672>*</span> k2 <span style=color:#f92672>+</span> <span style=color:#ae81ff>2.0</span> <span style=color:#f92672>*</span> k3 <span style=color:#f92672>+</span> k4) <span style=color:#f92672>/</span> <span style=color:#ae81ff>6.0</span>
+    x <span style=color:#f92672>+</span><span style=color:#f92672>=</span> h
+
+    y_ap<span style=color:#f92672>.</span>append(y)
+    x_ap<span style=color:#f92672>.</span>append(x)
+    
+  <span style=color:#66d9ef>return</span> x_ap, y_ap  
+
+</code></pre></div><p>グラフで見てみるとなかなか良い精度です。</p><p><img src=https://qiita-image-store.s3.amazonaws.com/0/106267/18fe3912-2ca5-463c-55f5-24479bb2b30f.png alt=image.png></p><p>ルンゲクッタ法は刻み幅が荒くても精度よく計算できるという特徴があります。ここで$h$を10倍の荒さの0.1にしてオイラー法とルンゲクッタ法で厳密解との誤差を見てみると、一目瞭然です。
+<img src=https://qiita-image-store.s3.amazonaws.com/0/106267/8acbeb21-2d45-2219-ed11-f9eed41611a7.png alt=image.png></p><p>計算機を使った数値解析ではかならず誤差を含みます。離散化誤差や丸め誤差などで、差分式による近似解がもとの常微分方程式とはまったく異なる解になってしまうことがあるので注意が必要です。</p><p>あと、数値解析はなるべく計算量を抑え、いかに精度の良い解を収束させるかに身骨を砕く世界です。今回の例ではまったくうれしさが分かりませんが、大規模な計算になると並列分散計算をするので、効率の良いアルゴリズム大事です。</p><h1 id=数値解析の注意点>数値解析の注意点</h1><p>解析では誤差以外にもいくつか気を付けることがあります。</p><h3 id=数値解析の収束性>数値解析の収束性</h3><p>数値解析では、刻み幅$h$を限りなく小さくしたときに近似解$x_n$が厳密解$x_(t_n)$に近づくことを**収束する**と言います。これは
+$$
+\lim_{h \to 0} x(t_j)
+$$
+をみたすとき</p><p>$$
+\lim_{h \to 0} \left( \max_{k&lt;n&lt;N} |x_n-x(t_j)| \right)=0
+$$
+がなりたつとき、解が収束するということになります。ただしこれは無限このステップ数を増やせば真の解が得られるといっていることになりますので、一般的には</p><p>$$
+|x_n-x(t_j)| \leq C_0 h^p (j = 0,1,\cdot \cdot \cdot,k-1)
+$$
+のもとで</p><p>$$
+\max_{k&lt;n&lt;N} |x_n-x(t_j)| \leq Ch^p
+$$
+となる指数$p$を与えます。ここで$h$は十分小さいものとし、$C_0,C$は$h$に依存しない定数です。このとき、近似解は$\mathcal{O}(h^p)$で収束する、といいます。</p><h3 id=数値解析の安定性>数値解析の安定性</h3><p>数値解析では、近似解が上下に激しく振動することがあります。これを数値的不安定現象と呼びます。微分方程式を今回のような差分法で解くときの数値的安定性を調べるのに使われる手法で、フォンノイマンの安定性解析というものがあります。</p><p>以前にメモしたブログですが、、、
+クランクニコルソン法とフォンノイマンの安定性についてはこちらにまとめています。
+<a href=http://dr-asa.hatenablog.com/entry/2017/08/31/154806>http://dr-asa.hatenablog.com/entry/2017/08/31/154806</a></p><h1 id=まとめ>まとめ</h1><p>だらだらと長くなりましたが、数値解析がわかるようになると、常微分方程式や偏微分方程式の近似解を計算機を使って求めることができます。これを応用すると物理現象を偏微分方程式で表現した支配方程式を解くことでシミュレーションができます。楽しい:kissing_heart:</p><p>機械学習より少ない数学の知識（解析学と初歩的な線形代数のみ）ではじめられますので、理系の大学教養部で学ぶ数学のやり直しにもおすすめです。</p><h1 id=参考文献>参考文献</h1><ul><li><a href="https://www.amazon.co.jp/dp/4781911269/ref=cm_sw_r_tw_dp_U_x_o2HlAbZFV9QJY">数値計算入門</a> サイエンス社 河村哲也著/2006年</li><li><a href="https://www.amazon.co.jp/dp/4320017536/ref=cm_sw_r_tw_dp_U_x_P6HlAbS0KJFGY">微分方程式による計算科学入門</a>共立出版社株式会社 三井 斌友/小藤 俊幸/斉藤 善弘 著/2004年</li></ul></div></main></body></html>
