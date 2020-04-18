@@ -9,8 +9,7 @@ $$</p><p>で関数$y$を求める問題を<strong>初期値問題</strong>と言
 \dfrac{dy}{dx} =f(x,y)
 $$</p><p>ここで$x$の解析領域$[a,b]$を間隔 $h$ で $n=(b-a)/h$ 分割して、$x,x_1,x_2,\cdot \cdot \cdot,x_n$ からなる区分 $i(x_i \leqq x \leqq x_{i+1})$ で積分すると次の式になります。</p><p>$$
 \int_{x_{i}}^{x_{i+1}} \dfrac {dx}{dx}dx =\int_{x_{i}}^{x_{i+1}} f(x,y) dx
-$$</p><p>これを代数方程式で表すと
-$$
+$$</p><p>これを代数方程式で表すと</p><p>$$
 y_{i+1} = y_{i} + \int_{x_{i}}^{x_{i+1}} f(x,y) dx
 $$
 となり、初期値$(x_0,y_0)$を与えて順次解くことで近似解が数列${y_i}$として求められます。</p><p>この差分式は$h,x_{i},y_{i}$の値を用いた増分関数$k(x_i,y_i,h)$と刻み幅$h$との積として表されます。</p><p>$$
@@ -23,17 +22,11 @@ $$</p><p>に初期値$y(0)=1$を与えて、Pythonでいくつかの手法で数
 <span style=color:#66d9ef>def</span> <span style=color:#a6e22e>divf</span>(x,y):
     <span style=color:#66d9ef>return</span>  x <span style=color:#f92672>*</span> y</code></pre></div><h1 id=まずは厳密解を求める>まずは厳密解を求める</h1><p>今回の例題の常微分方程式は、数値解析するまでもなく手計算で厳密解を求めることができますので、まずは手計算してみます。</p><p>常微分方程式を次のように式変形します。</p><p>$$
 \dfrac {dy}{dx}=xy\rightarrow \dfrac {dy}{y}=xdx
-$$
-ここで、両辺を積分してみます。
-$$
+$$</p><p>ここで、両辺を積分してみます。</p><p>$$
 \int \dfrac {dy}{y}=\int xdx
-$$
-積分の公式をつかうと
-$$
+$$</p><p>積分の公式をつかうと</p><p>$$
 ln|y|=\dfrac{1}{2}x^2 +C
-$$
-となります。（ただしCは任意定数）
-よって解は</p><p>$$
+$$</p><p>となります。（ただしCは任意定数）よって解は</p><p>$$
 y = Ce^{1/2x^2}
 $$</p><p>です。このぐらいの方程式で自然現象がうまくモデル化できれば人類はさほど苦労しないのですが、そうは甘くは無いので、、、厳密解が求まらないものを近似的に解くために数値解析をしていきます。</p><h1 id=オイラー法で近似解を求める>オイラー法で近似解を求める</h1><p>関数$y(x)$の$x_i$まわりにおけるテイラー展開は次の式になります。</p><p>$$
 y(x_{i+1}) = y(x_i) + hy&rsquo;(x_i) + \dfrac{h^2}{2}y&rsquo;'(x_i)+ \cdot \cdot \cdot
@@ -79,11 +72,9 @@ ax<span style=color:#f92672>.</span>set_title(<span style=color:#e6db74></span><
 ax<span style=color:#f92672>.</span>set_xlabel(<span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>x</span><span style=color:#e6db74>&#39;</span>)
 ax<span style=color:#f92672>.</span>set_ylabel(<span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>y</span><span style=color:#e6db74>&#39;</span>)
 ax<span style=color:#f92672>.</span>legend(loc<span style=color:#f92672>=</span><span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>best</span><span style=color:#e6db74>&#39;</span>)
-ax<span style=color:#f92672>.</span>grid(True) </code></pre></div><p>数値解析での解析精度は刻み幅$h$に大きく依存します。一般に$h$が小さいほど精度は向上しますが計算回数は$h$に逆比例して増します。また$h$が小さすぎると丸め誤差により誤差が増加したりもします。</p><p>Euler法は単純な計算で近似解を求めることができるので数値計算の理解というところでは分かりやすいのですが、誤差が非常に大きいため実用的ではありません。なので、さらに精度の良い手法をかんがえます。</p><h1 id=ホイン法で近似解を求める>ホイン法で近似解を求める</h1><p>Eulerは始点における曲線の勾配と刻み幅$h$との積により次の点を予測してます。もし$x_{i+1}$での勾配が予測できればより精度の高い積分ができます。</p><p>つまり
-$$
+ax<span style=color:#f92672>.</span>grid(True) </code></pre></div><p>数値解析での解析精度は刻み幅$h$に大きく依存します。一般に$h$が小さいほど精度は向上しますが計算回数は$h$に逆比例して増します。また$h$が小さすぎると丸め誤差により誤差が増加したりもします。</p><p>Euler法は単純な計算で近似解を求めることができるので数値計算の理解というところでは分かりやすいのですが、誤差が非常に大きいため実用的ではありません。なので、さらに精度の良い手法をかんがえます。</p><h1 id=ホイン法で近似解を求める>ホイン法で近似解を求める</h1><p>Eulerは始点における曲線の勾配と刻み幅$h$との積により次の点を予測してます。もし$x_{i+1}$での勾配が予測できればより精度の高い積分ができます。</p><p>つまり</p><p>$$
 y_{i+1}=y_i +\dfrac{h}{2} f(x_i,y_i) + \dfrac{h}{2}f(x_{i+1},y_{i+1})
-$$
-とし、未知の$f(x_{i+1},y_{i+1})$にオイラーの公式で与えられる値を用いる方法を**ホイン法**といいます。</p><p>Pythonでホイン法を実装するとつぎのようになります。$x$,$y$で初期値、刻み幅を$h$、$x$の最大値を$b$としています。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#75715e># ホイン法</span>
+$$</p><p>とし、未知の$f(x_{i+1},y_{i+1})$にオイラーの公式で与えられる値を用いる方法を**ホイン法**といいます。</p><p>Pythonでホイン法を実装するとつぎのようになります。$x$,$y$で初期値、刻み幅を$h$、$x$の最大値を$b$としています。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#75715e># ホイン法</span>
 <span style=color:#66d9ef>def</span> <span style=color:#a6e22e>imp_euler</span>(x, y, h, b):
   x_ap <span style=color:#f92672>=</span> [x]
   y_ap <span style=color:#f92672>=</span> [y]
@@ -102,9 +93,21 @@ $$
 y(x) = y(x_i)+(x-x_i)y&rsquo;(x_i) + \dfrac{(x-x_i)^2}{2!}y&rsquo;'(x_i)+\cdot \cdot \cdot
 $$</p><p>ここで、$x=x_{i+1}=x_i+h$とすると</p><p>$$
 y(x_{i+1})=y(x_i) + hy&rsquo;(x_i) + \dfrac{h^2}{2!}y&rsquo;'(x_i)+ \cdot \cdot
-$$</p><p>となります。ここで</p><p>とし、</p><p>$$
+$$</p><p>となります。ここで</p><p>$$
+\begin{aligned}
+k_1 &=& hf(x_i,y_i) \<br>k_2 &=& hf(x_i+a_{1}h,y_i + b_1h) \<br>k_3 &=& hf(x_i+a_{2}h,y_i + b_{21}k_1 + b_{22}k_2) \<br>k_4 &=& hf(x_0+a_{3}h,y_i + b_{31}k_1 + b_{32}k_2 +b_{33}k_3)
+\end{aligned}
+$$</p><p>とし、</p><p>$$
 y_{i+1} = y_i +c_ik_1 + c_2k_2 + c_3k_3 + c_4k_4
-$$</p><p>として解く方法を、<strong>ルンゲクッタ法</strong>と呼びます。</p><p>ルンゲクッタ法にはいろいろな種類があり、それによって$c$の値が異なるのですが、一番有名な4段4次精度陽的ルンゲクッタ法は、初期条件を$(x_0,y_0)$とし、刻み幅を$h$とすると</p><p>であわらされます。</p><p>ここで4段4次精度陽的ルンゲクッタ法は、係数$k$をそれぞれ</p><p>として解を求めます。</p><p>4段4次精度陽的ルンゲクッタ法をPythonで実装するとこんな感じです。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#75715e># RK4法</span>
+$$</p><p>として解く方法を、<strong>ルンゲクッタ法</strong>と呼びます。</p><p>ルンゲクッタ法にはいろいろな種類があり、それによって$c$の値が異なるのですが、一番有名な4段4次精度陽的ルンゲクッタ法は、初期条件を$(x_0,y_0)$とし、刻み幅を$h$とすると</p><p>$$
+\begin{aligned}
+x_{i+1} &=& x_i +h \<br>y_{i+1} &=& y_i +\dfrac{1}{6}(k1 + 2k_2 + 2k_3 +k_4)
+\end{aligned}
+$$</p><p>であわらされます。</p><p>ここで4段4次精度陽的ルンゲクッタ法は、係数$k$をそれぞれ</p><p>$$
+\begin{aligned}
+k_1 &=& f(x_i,y_i)h \<br>k_2 &=& f(x_i + \dfrac{h}{2},y_i + \dfrac{k_1}{2})h \<br>k_3 &=& f(x_i + \dfrac{h}{2},y_i + \dfrac{k_2}{2})h \<br>k_4 &=& f(x_i + h,y_i + k_3)h
+\end{aligned}
+$$</p><p>として解を求めます。</p><p>4段4次精度陽的ルンゲクッタ法をPythonで実装するとこんな感じです。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#75715e># RK4法</span>
 <span style=color:#66d9ef>def</span> <span style=color:#a6e22e>rk4</span>(x, y, h, b):
   x_ap <span style=color:#f92672>=</span> [x]
   y_ap <span style=color:#f92672>=</span> [y]
