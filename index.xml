@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>ASA Blog</title><link>https://asashiho.github.io/</link><description>Recent content on ASA Blog</description><generator>Hugo -- gohugo.io</generator><language>ja-jp</language><copyright>Your Copyright</copyright><lastBuildDate>Wed, 15 Apr 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://asashiho.github.io/index.xml" rel="self" type="application/rss+xml"/><item><title>常微分方程式の初期値問題</title><link>https://asashiho.github.io/ordinary-differential-equation/ode/</link><pubDate>Wed, 15 Apr 2020 00:00:00 +0000</pubDate><guid>https://asashiho.github.io/ordinary-differential-equation/ode/</guid><description>ここでは、数値解析の応用分野である構造解析や熱流体解析などのエンジニアリングシミュレーションの基本となる、常微分方程式の初期値問題に関する簡単な数値解析を紹介します。
+一般に独立変数$x$に関する関数$y$の$m$階常微分方程式はつぎのとおりです。
 $$ \dfrac{dy}{dx}=f(x,y,y&amp;rsquo;,y&amp;rsquo;',\cdot \cdot \cdot,y^{m-1}) $$
 ここで区間$[a,b]$における$x=a$での$m$個の初期値を与え
 $$ y(a)=y_0,; y&amp;rsquo;(a)=y&amp;rsquo;_0,; \cdot \cdot \cdot,y^{(m-1)}(a)= y^{m-1} $$
@@ -12,7 +13,7 @@ $$ \int_{x_{i}}^{x_{i+1}} \dfrac {dx}{dx}dx =\int_{x_{i}}^{x_{i+1}} f(x,y) dx $$
 $$ y_{i+1} = y_{i} + hk(x_i,y_i,h) $$
 このように、厳密解ではなく代数方程式による近似解を求めることを数値解析と呼びます。数値解析は、数学や物理学の分野で代数的な方法で解を得ることが不可能な解析学上の問題を数値を用いて近似的に解くときに用いられ、主に計算機をつかって近似解を求めます。
 今回は例題として、以下の常微分方程式
-\begin{equation} \dfrac{dy}{dx} = xy \end{equation} に初期値$y(0)=1$を与えて、Pythonでいくつかの手法で数値解析してみます！</description></item><item><title>高可用性かつスケーラブルなKubernetesクラスターを運用するときに気を付けたいこと</title><link>https://asashiho.github.io/kube-deschesuler/kube-deschesuler/</link><pubDate>Thu, 26 Mar 2020 00:00:00 +0000</pubDate><guid>https://asashiho.github.io/kube-deschesuler/kube-deschesuler/</guid><description>お仕事でプリセールスをしているため、お客様やSIパートナー様といっしょに「ぜったいにサービスを止められないシステム」について議論することが多くあります。
+$$ \begin{aligned} \dfrac{dy}{dx} = xy \end{aligned} $$</description></item><item><title>高可用性かつスケーラブルなKubernetesクラスターを運用するときに気を付けたいこと</title><link>https://asashiho.github.io/kube-deschesuler/kube-deschesuler/</link><pubDate>Thu, 26 Mar 2020 00:00:00 +0000</pubDate><guid>https://asashiho.github.io/kube-deschesuler/kube-deschesuler/</guid><description>お仕事でプリセールスをしているため、お客様やSIパートナー様といっしょに「ぜったいにサービスを止められないシステム」について議論することが多くあります。
 一方、クラウドはオンプレに比べてスケーラブルな構成をとることが得意です。したがって、ユーザーの利用が時間的にばらつきがあるシステムやスパイクアクセスが発生するシステムなどの場合は、クラウドを提案する良いチャンスだったりもします。
 このブログではそのようなニーズを満たすクラスターを運用するときに気を付けたいことや、私自身が検証していて気づいたことをホワイトボードに書く感覚で、だらだらと書きとめます。
 なお、本内容はたまたまAzureが提供するKubernetesマネージドサービスである「Azure Kubernetes Service（以下AKS）」を使って検証しましたが、基本的な考え方はやGoogle CloudのGKEやAWSのEKSなど他クラウドでも同じだとおもいます。
