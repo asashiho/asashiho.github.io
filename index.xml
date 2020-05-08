@@ -1,4 +1,24 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>ASA Blog</title><link>https://asashiho.github.io/</link><description>Recent content on ASA Blog</description><generator>Hugo -- gohugo.io</generator><language>ja-jp</language><copyright>Your Copyright</copyright><lastBuildDate>Wed, 06 May 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://asashiho.github.io/index.xml" rel="self" type="application/rss+xml"/><item><title>オイラー法/ホイン法/ルンゲクッタ法をつかった常微分方程式の初期値問題</title><link>https://asashiho.github.io/ordinary-differential-equation/ode/</link><pubDate>Wed, 06 May 2020 00:00:00 +0000</pubDate><guid>https://asashiho.github.io/ordinary-differential-equation/ode/</guid><description>ここでは、数値解析の応用分野である構造解析や熱流体解析などのシミュレーションの基本となる、常微分方程式の初期値問題に関する簡単な数値解析を紹介します。
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>ASA Blog</title><link>https://asashiho.github.io/</link><description>Recent content on ASA Blog</description><generator>Hugo -- gohugo.io</generator><language>ja-jp</language><copyright>Your Copyright</copyright><lastBuildDate>Fri, 08 May 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://asashiho.github.io/index.xml" rel="self" type="application/rss+xml"/><item><title>Kubernetesクラスターに対するL4ネットワークアクセス制御を整理する</title><link>https://asashiho.github.io/aks-l4/kubernetes-l4/</link><pubDate>Fri, 08 May 2020 00:00:00 +0000</pubDate><guid>https://asashiho.github.io/aks-l4/kubernetes-l4/</guid><description>お仕事でプリセールスをしているため、お客様やSIパートナー様といっしょに「高い安全性が求められるシステム」について議論することが多くあります。
+いわゆるクラウドネイティブアプリケーションの場合、クラウド時代の脅威に対応するためには「 内部を（ユーザーも含めて）信頼しない 」という考え方を前提に考えることが適していたりします。
+境界ベースのセキュリティからゼロトラスト セキュリティへの移行
+従来のセキュリティ モデルでは、組織のアプリケーションはプライベート データセンターの外部ファイアウォールに依存して、受信トラフィックを保護できません。クラウド ネイティブ環境でも、BeyondCorp モデルと同様にネットワーク境界を引き続き保護する必要がありますが、境界ベースのセキュリティ モデルでは十分に保護できません。新しいセキュリティ上の問題が発生するわけではありませんが、ファイアウォールで企業ネットワークを完全に保護できなければ、本番環境ネットワークも完全に保護できません。ゼロトラスト セキュリティ モデルでは、内部トラフィックが暗黙に信頼されず、認証や暗号化などのセキュリティ制御が必要になります。同時に、マイクロサービスへの移行は、従来のセキュリティ モデルを再検討する機会となります。単一のネットワーク境界（1 つのファイアウォールなど）への依存を排除すると、ネットワークをサービスごとに分割できるようになります。このアイデアをさらに進めて、サービス間に固有の相互信頼関係をなくして、マイクロサービス レベルのセグメンテーションを実装することもできます。マイクロサービスでは、トラフィックの信頼度がさまざまであるため、内部トラフィックと外部トラフィックを比較するだけでは済みません。
+引用:BeyondProd: クラウド ネイティブ セキュリティに対する新しいアプローチより
+とはいうものの、、、オンプレミス環境などでシステムを運用しているケースでは境界型モデルが馴染みが深く、まず最初に方式設計の検討テーマに上がります。
+このブログでは、Kubernetesクラスターへのネットワークアクセスについて私自身が検証していて気づいたことをホワイトボードに書く感覚で、だらだらと書きとめます。
+※ なお「Kuberntesのセキュリティ対策はネットワークアクセス制御さえすれば安全といえよう！」のようなシンプルなものではなく、認証認可・イメージの脆弱性検査・特権エスカレーションの阻止などなどなどなどなど、多岐にわたります。Kuberntesに対する脅威はこちらの「Attack matrix for Kubernetes」にまとまっておりますので、ぜひ。
+Kubernetesクラスターへの2つのアクセス経路 Kubernetesクラスターを運用環境で稼働させるとき、安全なアクセス経路を検討するには、次の2つを考える必要があります。
+なお、分かりやすさ重視のため「ほげ銀行」という妄想上の企業の社内システムを例に説明しています。
+1. Kubernetesクラスター上で動かすアプリに対するアクセス 主にシステム利用者がKubernetesクラスター上で動くWebアプリケーションにアクセスするときのアクセス経路です。たとえば、ほげ銀行では市場国際部門・与信管理部門・証券投資部門のユーザがそれぞれの業務を行うためのアプリケーションにアクセスします。
+2. Kubernetesクラスター管理のためのコントロープレーンに対するアクセス Kubernetesクラスターへのアプリのデプロイやクラスターの運用などでKubernetesのAPI Serverに対してアクセスするための経路です。クラスターに対して強い権限が必要になるため、限られたアクセス経路からのみ通信できる必要があります。
+今回のブログは、1.のケースのアクセス経路についてのみ整理します。
+(この話をごちゃごちゃ混乱させずに文章で説明する能力がないので2.のプライベートクラスターのケースについては、別ブログにて改めて)
+境界型モデルによるネットワークアクセスコントロール 従来のオンプレミス型のシステムの場合、業務システムへのアクセスは、すべてのトラフィックをFWを介してコントロールする場合が多いと思います。
+基本的に社内システムはプライベートな閉塞区間で運用し、社外への通信が必要な場合はバリアセグメントを設け、そこを経由することでアクセスコントロール・監査・Lockdownを1か所で行う、という考え方です。
+たとえば、Azureの場合、Azure Kubernetes Service(AKS)のアクセス制御するときは以下のようなアーキテクチャになります。
+このクラスタ外に配置したAzure Firewallの主な目的は、組織がAKSクラスターに対して細かくIngressおよびEgress Traffic規則を設定できるようにすることです。
+たとえばこの構成例では、Ingress Trafficはファイアウォール フィルターの経由が強制されています。 またEgress Trafficはユーザー定義ルートを使用して、NodeからAzure FirewallのInternal IPを介して、パブリックインターネットまたはその他のAzureサービスへのアクセスは、FWのPublic IPで行われます。
+またAKSの場合、クラスターが機能するには、必須のEgress Endpointで定義されているすべてのEndpointをアプリケーション ファイアウォール規則で有効にする必要があります。 これらのエンドポイントが有効ではない場合、クラスターは正しく動かないので注意してください。
+az network firewall application-rule create -g $RG -f $FWNAME \ --collection-name &amp;#39;AKS_Global_Required&amp;#39; \ --action allow \ --priority 100 \ -n &amp;#39;required&amp;#39; \ --source-addresses &amp;#39;*&amp;#39; \ --protocols &amp;#39;http=80&amp;#39; &amp;#39;https=443&amp;#39; \ --target-fqdns \ &amp;#39;aksrepos.</description></item><item><title>オイラー法/ホイン法/ルンゲクッタ法をつかった常微分方程式の初期値問題</title><link>https://asashiho.github.io/ordinary-differential-equation/ode/</link><pubDate>Wed, 06 May 2020 00:00:00 +0000</pubDate><guid>https://asashiho.github.io/ordinary-differential-equation/ode/</guid><description>ここでは、数値解析の応用分野である構造解析や熱流体解析などのシミュレーションの基本となる、常微分方程式の初期値問題に関する簡単な数値解析を紹介します。
 一般に独立変数$x$に関する関数$y$の$m$階常微分方程式はつぎのとおりです。
 $$ \dfrac{dy}{dx}=f(x,y,y&amp;rsquo;,y&amp;rsquo;',\cdot \cdot \cdot,y^{m-1}) $$
 ここで区間$[a,b]$における$x=a$での$m$個の初期値を与え
