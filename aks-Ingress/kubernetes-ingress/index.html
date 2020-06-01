@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja-jp" lang="ja-jp">
+<head>
+  <link href="https://gmpg.org/xfn/11" rel="profile">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="generator" content="Hugo 0.58.3" />
+
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>KubernetesクラスターでのWebアプリケーションゲートウェイ(Ingress)の構成について整理する &middot; ASA Blog</title>
+  <meta name="description" content="Kubernetesクラスターに対するL7アクセス制御をAzure Kubernetes Serviceを例にして整理しました。" />
+
+  
+  <link type="text/css" rel="stylesheet" href="https://asashiho.github.io/css/print.css" media="print">
+  <link type="text/css" rel="stylesheet" href="https://asashiho.github.io/css/poole.css">
+  <link type="text/css" rel="stylesheet" href="https://asashiho.github.io/css/syntax.css">
+  <link type="text/css" rel="stylesheet" href="https://asashiho.github.io/css/hyde.css">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700">
+
+  <link type="text/css" rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.6/css/all.css">
+  <link type="text/css" rel="stylesheet" href="https://aakira.app/css/custom.css">
+  
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css" integrity="sha384-wITovz90syo1dJWVh32uuETPVEtGigN07tkttEqPv+uR2SE/mbQcG7ATL28aI9H0" crossorigin="anonymous">
+
+  
+  <link rel="apple-touch-icon-precomposed" sizes="144x144" href="/apple-touch-icon-144-precomposed.png">
+  <link rel="shortcut icon" href="/favicon.png">
+
+  
+  
+  
+<link
+  rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/katex@0.10.0-rc.1/dist/katex.min.css"
+  integrity="sha384-D+9gmBxUQogRLqvARvNLmA9hS2x//eK1FhVb9PiU86gmcrBrJAQT8okdJ4LMp2uv"
+  crossorigin="anonymous"
+>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.10.0-rc.1/dist/katex.min.js"
+  integrity="sha384-483A6DwYfKeDa0Q52fJmxFXkcPCFfnXMoXblOkJ4JcA8zATN6Tm78UNL72AKk+0O"
+  crossorigin="anonymous"
+></script>
+
+<script defer
+  src="https://cdn.jsdelivr.net/npm/katex@0.10.0-rc.1/dist/contrib/auto-render.min.js"
+  integrity="sha384-yACMu8JWxKzSp/C1YV86pzGiQ/l1YUfE8oPuahJQxzehAjEt2GiQuy/BIvl9KyeF"
+  crossorigin="anonymous"
+  onload="renderMathInElement(document.body);"
+></script>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+      renderMathInElement(
+          document.body,
+          {
+              delimiters: [
+                  {left: "$$", right: "$$", display: true},
+                  {left: "\\[", right: "\\]", display: true},
+                  {left: "$", right: "$", display: false},
+                  {left: "\\(", right: "\\)", display: false}
+              ]
+          });
+      });
+</script>
+
+  
+  
+
+<meta property="og:site_name"           content="ASA Blog">
+<meta property="og:title"               content="KubernetesクラスターでのWebアプリケーションゲートウェイ(Ingress)の構成について整理する">
+<meta property="og:url"                 content="https://asashiho.github.io/aks-ingress/kubernetes-ingress/">
+<meta property="og:type"                content="article">
+<meta name="twitter:card"               content="summary">
+<meta name="twitter:site" content="@_dr_asa" />
+<meta name="twitter:creator" content="@_dr_asa" /> 
+<meta property="twitter:title"          content="KubernetesクラスターでのWebアプリケーションゲートウェイ(Ingress)の構成について整理する">
+
+    
+    <meta property="og:description"         content="Kubernetesクラスターに対するL7アクセス制御をAzure Kubernetes Serviceを例にして整理しました。">
+    <meta property="twitter:description"    content="Kubernetesクラスターに対するL7アクセス制御をAzure Kubernetes Serviceを例にして整理しました。">
+    
+
+
+    <meta property="og:image"       content="https://asashiho.github.io/thumbnails/prof.jpg">
+    <meta property="og:image:url"   content="https://asashiho.github.io/thumbnails/prof.jpg">
+
+</head>
+
+
+  <body class="theme-base-0d ">
+  <aside class="sidebar">
+  <div class="container sidebar-sticky">
+    <div class="sidebar-about">
+      <a href="https://asashiho.github.io/"><h1>ASA Blog</h1></a>
+      <p class="lead">
+       enjoy a laid-back life 
+      </p>
+    </div>
+
+    <nav>
+      <ul class="sidebar-nav">
+        <li><a href="https://asashiho.github.io/">Home</a> </li>
+        <li><a href="https://github.com/asashiho/"> GitHub </a></li><li><a href="https://www.linkedin.com/in/shiho-asa/"> LinkedIn </a></li>
+      </ul>
+    </nav>
+
+    <p>&copy; 2020. All rights reserved. </p>
+  </div>
+</aside>
+
+    <main class="content container">
+    <div class="post">
+  <h1>KubernetesクラスターでのWebアプリケーションゲートウェイ(Ingress)の構成について整理する</h1>
+  <time datetime=2020-06-01T00:00:00Z class="post-date">Mon, Jun 1, 2020</time>
+  
+
+<a href="http://twitter.com/intent/tweet?url=https%3a%2f%2fasashiho.github.io%2faks-ingress%2fkubernetes-ingress%2f&text=Kubernetes%e3%82%af%e3%83%a9%e3%82%b9%e3%82%bf%e3%83%bc%e3%81%a7%e3%81%aeWeb%e3%82%a2%e3%83%97%e3%83%aa%e3%82%b1%e3%83%bc%e3%82%b7%e3%83%a7%e3%83%b3%e3%82%b2%e3%83%bc%e3%83%88%e3%82%a6%e3%82%a7%e3%82%a4%28Ingress%29%e3%81%ae%e6%a7%8b%e6%88%90%e3%81%ab%e3%81%a4%e3%81%84%e3%81%a6%e6%95%b4%e7%90%86%e3%81%99%e3%82%8b" target="_blank" title="Tweet"><i class="fab fa-twitter"></i></a>&ensp;
+<a href="http://www.facebook.com/sharer.php?u=https%3a%2f%2fasashiho.github.io%2faks-ingress%2fkubernetes-ingress%2f&t=Kubernetes%e3%82%af%e3%83%a9%e3%82%b9%e3%82%bf%e3%83%bc%e3%81%a7%e3%81%aeWeb%e3%82%a2%e3%83%97%e3%83%aa%e3%82%b1%e3%83%bc%e3%82%b7%e3%83%a7%e3%83%b3%e3%82%b2%e3%83%bc%e3%83%88%e3%82%a6%e3%82%a7%e3%82%a4%28Ingress%29%e3%81%ae%e6%a7%8b%e6%88%90%e3%81%ab%e3%81%a4%e3%81%84%e3%81%a6%e6%95%b4%e7%90%86%e3%81%99%e3%82%8b" target="_blank" title="Facebook"><i class="fab fa-facebook"></i></a>&ensp;
+<a href="https://plus.google.com/share?url=https%3a%2f%2fasashiho.github.io%2faks-ingress%2fkubernetes-ingress%2f" target="_blank" title="google+"><i class="fab fa-google-plus"></i></a>
+<hr>
+
+  
+
+<p><a href="https://asashiho.github.io/aks-l4/kubernetes-l4/">前回のブログ</a>では、Kubernetesクラスターに対するL4アクセス制御をAzure Kubernetes Serviceを例にして整理しました。</p>
+
+<p>しかしながら、多くのケースではWebアプリケーションへの急激なトラフィックの増加やトランザクションの集中にも対応できるようにするだけでなく、バックエンドサーバー群に効率よくルーティングする機能やSSL終端、またDDoS攻撃からの防御やSQLインジェクションなどから保護するWeb Application FirewallなどL7でのアクセス制御が必要です。さらに流量制御や証明書管理などなど、さまざまな非機能要件があります。</p>
+
+<p>で、基盤方式設計フェーズでは、これらの処理をだれがどこでどう行うか？の処理方式を検討しておく必要があるわけですが。。。</p>
+
+<p>レジェンドな企業の多くの場合は、アプリケーション開発部門とインフラ構築部門、運用保守部門が組織として分かれているケースが多く、Webアプリケーションのゲートウェイ機能の方式設計は、インフラ構築部門が行い、共通基盤化してアプリ開発チームに引き渡し、運用フェーズになると運用保守部門にてメンテナンスすることがおおいでしょう。
+大規模なシステムの場合、組織での責任分界点も踏まえたうえで、基盤方式設計を行うというのは極めて大事です。</p>
+
+<p>システム内でKubernetesを利用する場合、L7ロードバランサの方式設計時に考慮しておくべきことがいくつかありますので、簡単なメモ書きとしてまとめます。</p>
+
+<h1 id="kubernetes-でのwebアプリケーションゲートウェイの構成パターン">Kubernetes でのWebアプリケーションゲートウェイの構成パターン</h1>
+
+<p>Kubernetes では、L7ロードバランシングを提供するとき、「<strong>Ingress</strong>」というリソースを使います。これは、HTTP やHTTPS の外部アクセスを制御するオブジェクトで、バーチャルホストやURLルーティング、ロードバランシング、SSL 終端などの機能を提供するものです。</p>
+
+<p>Kubernetes のIngressには大きく分けて次の2つがあります。</p>
+
+<h2 id="クラスタ内でゲートウェイ処理を行うパターン">クラスタ内でゲートウェイ処理を行うパターン</h2>
+
+<p>これは、Kubernetes クラスター内でソフトウエアとしてWebアプリケーションゲートウェイの機能を動かすパターンです。Kubernetesクラスターからみるとコンテナアプリケーション(Pod)として動作し、これがミドルウエアの機能を果たします。</p>
+
+<p><img src="../docs/images/int-ingress.png" alt="" /></p>
+
+<p>代表的なものがNginx Ingress Controller で、そのほかにもContour やContainous 社のTraefik、HAProxy などがあります。</p>
+
+<p>Kubernetes クラスターのなかにインストールして使うものなんだな、という理解で大丈夫です。</p>
+
+<h2 id="クラスタ外でゲートウェイ処理を行うパターン">クラスタ外でゲートウェイ処理を行うパターン</h2>
+
+<p>ゲートウェイで処理したいもののなかには、SSL 終端などのようにコンピューティングリソースを多く使うものもあったりします。
+そのため、ゲートウェイ処理に特化したのものをクラスタ外部で動かし、クラスタとは疎結合にしておきたい！というニーズもあります。
+普段オンプレをメインに担当されている方は、直感的に理解できるかと思います。</p>
+
+<p><img src="../docs/images/ext-ingress.png" alt="" /></p>
+
+<p>たとえばAzureの場合「<strong>Azure Application Gateway</strong>」という専用のサービスがあり、バックエンドがKuberbetes に限らずAzure 上の仮想マシンやオンプレなどのバックエンドもサポートできるものが提供されています。
+またGCP の場合だと「<strong>Cloud Load Balancing</strong>」という最強サービスがあります。</p>
+
+<p>これらを使ってバックエンドにKuberbetes クラスターをおいてあげれば、よさそうです。</p>
+
+<h1 id="web-アプリケーションゲートウェイの設定はどう運用するのか">Web アプリケーションゲートウェイの設定はどう運用するのか？</h1>
+
+<p>URLルーティングなどはアプリケーション開発者の関心ごとである一方、特にマルチクラウドでシステムを運用している場合、各クラウドごとに実装の異なるL7 ロードバランサーの操作手順をいちいち勉強するのはあまりテンションがあがるものではないでしょう。</p>
+
+<p>しかもそれがものすごい勢いでアップデートしていくわけなので、だれかに任せたい気分になるとおもいます。</p>
+
+<p>KubernetesでWeb アプリケーションゲートウェイの設定変更したり監視したりなどの運用保守を考えるとき、次の2つのパターンが考えられます。</p>
+
+<h2 id="運用管理者が行う方法">運用管理者が行う方法</h2>
+
+<p>オンプレや仮想マシンベースのアーキテクチャの場合、URL ルーティングのポリシーの管理などはシステム変更があるたびにアプリケーション開発者からインフラ運用部門に変更依頼や承認などを経て、人間の手を介して本番環境へ反映するケースが多いと思います。</p>
+
+<p><img src="../docs/images/ope-ingress.png" alt="" /></p>
+
+<p>しかしながら、人間には信頼性がないことが広く知られています。</p>
+
+<p>万全な冗長構成をとり基盤テストを繰り返して99.99999…を追求し、広域災害にも配慮した方式設計にすることでシステムの可用性もコストも高まり、クラウドベンダーは喜びます。しかしながら、SLAのない人間による手作業による温かみのあるURL ルーティングの設定変更がsingle point of failure になる可能性もありますので、運用方式設計にきちんと盛り込んでおきましょう！</p>
+
+<p>が、しかし。すでに既存のシステムでなんらかのWeb アプリケーションゲートウェイを導入済みで、それらの運用スタイルが確立していて特に問題がないようであれば、使い慣れたものをそのまま利用するのもよいでしょう。</p>
+
+<p>Azure の場合だと、すでにApplication Gateway を稼働中であればバックエンドサーバー群にAKS を配置してロードバランシングやルーティングなどを配置すればよいでしょう。なによりシステム構成がシンプルで直感的です。
+アプリケーション開発者と運用保守エンジニアの心の距離が近い、または同一人物である、などの組織であれば、フレキシブルに対応できると思います。</p>
+
+<h2 id="kubernetes-から自動で設定を行う方法">Kubernetes から自動で設定を行う方法</h2>
+
+<p>KuberbetesではIngress の設定を行うコントローラーがあり、これを「<strong>Ingress Controller</strong>」とよびます。Ingress/Ingress Controller をつかうとL7 ロードバランサの実装の差を吸収し、抽象化できます。</p>
+
+<p>Ingress Controller は実装によって異なるので、ここではAzure を例に説明します。</p>
+
+<h3 id="application-gateway-ingress-controller-の場合">Application Gateway Ingress Controller の場合</h3>
+
+<p>Application Gateway Ingress Controller(AGIC) はAzure Kubernetes Service 上で動くコンテナアプリケーションです。このアプリから直接、Azure Application Gateway L7 ロードバランサーを操作できるものです。厳密にいうと、Azure Resource Manager というAzure のサービスをコントロールするしくみを介して操作します。</p>
+
+<p><img src="../docs/images/ingress-controller.png" alt="" /></p>
+
+<p>Kubernetes のIngress のリソースの設定ファイルは、だいたいこんな感じで、path によってBackend のルーティング先を振り分けるんだなと直感的に分かると思います。これをAKS クラスタにapply すると、AGIC を介してApplication Gateway が操作できます。</p>
+
+<pre><code class="language-yaml">apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: hello-world-ingress
+  namespace: ingress-basic
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: &quot;false&quot;
+    nginx.ingress.kubernetes.io/rewrite-target: /$1
+spec:
+  rules:
+  - http:
+      paths:
+      - backend:
+          serviceName: aks-helloworld
+          servicePort: 80
+        path: /(.*)
+      - backend:
+          serviceName: ingress-demo
+          servicePort: 80
+        path: /hello-world-two(/|$)(.*)
+</code></pre>
+
+<p>現在、AKS とAGIC を連携してできる主な機能は以下の通りです。</p>
+
+<ul>
+<li>URLルーティング</li>
+<li>Cookieベースのアフィニティ</li>
+<li>SSL終端</li>
+<li>エンドツーエンドSSL</li>
+<li>Webアプリケーションファイアウォール</li>
+</ul>
+
+<p>その他使用可能なAGIC機能のリストは<a href="https://github.com/Azure/application-gateway-kubernetes-ingress/tree/master/docs/features">こちら</a>になります。</p>
+
+<p>Ingress Controller を使うと、Ingress のルールがKubernetes のマニュフェストとして管理できます。Kubernetes のReconciliation Loop にのっかれますので、宣言ベースでインフラを保持できます。</p>
+
+<blockquote>
+<p>Reconciliation Loopってなに？という方は<a href="https://twitter.com/tmak_tw">まかべさん</a>による資料<a href="https://www.slideshare.net/ToruMakabe/kubernetes-120907020">Kubernetesのしくみ やさしく学ぶ 内部構造とアーキテクチャー</a>をぜひ。</p>
+</blockquote>
+
+<p>また、インフラの構成情報がコードとして管理できるので、GitOps のようなしくみを導入してPipeline に組み込むことができます。アプリケーションのCI/CD だけでなく、インフラ部分もなるべく人手を介さないオペレーションで本番環境にデプロイできるのは、システム全体の可用性を向上させるという点でも重要なポイントです。</p>
+
+<p>KubernetesのIngress を覚えるだけで、実装の差異はIngress Controller が吸収し抽象化してくれるので、さまざまなスキルセットの人が混在する大規模開発などでも展開しやすいでしょう。</p>
+
+<p>AKS の場合はApplication Gateway が、GKEの場合はCloud Load Balancing が実体として動くわけなのですが、これらをアプリケーション開発者が強く意識しなくてもよいのは助かります。</p>
+
+<h4 id="azure-でapplication-gateway-ingress-controller-を使うときの注意点は">Azure でApplication Gateway Ingress Controller を使うときの注意点は？</h4>
+
+<p>では、Azure固有の話を少しだけ。</p>
+
+<p>Kubernetes Ingress の仕様では、Application Gatewayのすべての機能をIngress リソースを通じて公開することは許可されていません。したがって、Application GatewayのIngress Controller 固有のアノテーションを設定する必要があります。</p>
+
+<p>| Annotation Key | Value Type | Default Value | Allowed Values
+| &ndash; | &ndash; | &ndash; | &ndash; |
+| <a href="#backend-path-prefix">appgw.ingress.kubernetes.io/backend-path-prefix</a> | <code>string</code> | <code>nil</code> | |
+| <a href="#backend-hostname">appgw.ingress.kubernetes.io/backend-hostname</a> | <code>string</code> | <code>nil</code> | |
+| <a href="#backend-protocol">appgw.ingress.kubernetes.io/backend-protocol</a> | <code>string</code> | <code>http</code> | <code>http</code>, <code>https</code> |
+| <a href="#ssl-redirect">appgw.ingress.kubernetes.io/ssl-redirect</a> | <code>bool</code> | <code>false</code> | |
+| <a href="#appgw-ssl-certificate">appgw.ingress.kubernetes.io/appgw-ssl-certificate</a> | <code>string</code> | <code>nil</code> | |
+| <a href="#appgw-trusted-root-certificate">appgw.ingress.kubernetes.io/appgw-trusted-root-certificate</a> | <code>string</code> | <code>nil</code> | |
+| <a href="#connection-draining">appgw.ingress.kubernetes.io/connection-draining</a> | <code>bool</code> | <code>false</code> | |
+| <a href="#connection-draining">appgw.ingress.kubernetes.io/connection-draining-timeout</a> | <code>int32</code> (seconds) | <code>30</code> | |
+| <a href="#cookie-based-affinity">appgw.ingress.kubernetes.io/cookie-based-affinity</a> | <code>bool</code> | <code>false</code> | |
+| <a href="#request-timeout">appgw.ingress.kubernetes.io/request-timeout</a> | <code>int32</code> (seconds) | <code>30</code> | |
+| <a href="#use-private-ip">appgw.ingress.kubernetes.io/use-private-ip</a> | <code>bool</code> | <code>false</code> | |
+| <a href="#azure-waf-policy-for-path">appgw.ingress.kubernetes.io/waf-policy-for-path</a> | <code>string</code> |   |   |</p>
+
+<p><a href="https://github.com/Azure/application-gateway-kubernetes-ingress/blob/master/docs/annotations.md">サポートされているアノテーション</a>の詳細はこちらになります。</p>
+
+<p>また、Application Gateway Ingress Controller を使いたい大きなモチベーションの1つにApplication Gateway のメトリックを使用した AKS 上のPod のオートスケールがあるとおもいます。</p>
+
+<p>スパイクアクセスで着信トラフィックが急増増えたとき、需要に応じてPod をオートスケールさせたいわけですが、デフォルトだとAKS ノードのCPU やメモリなどを監視してのスケーリングとなります。このスケーリングのトリガーとしてApplication Gateway のメトリックを使う機能が提供されています。が、現在はまだ<a href="https://docs.microsoft.com/ja-jp/azure/application-gateway/ingress-controller-autoscale-pods">ベータ公開中</a>ですのでプロダクション環境ではご利用いただけません。</p>
+
+<blockquote>
+<p>その他Application Gateway Ingress Controllerのソースコードは<a href="https://github.com/Azure/application-gateway-kubernetes-ingress">こちら</a>ですので、ご興味あるかたはぜひ！</p>
+</blockquote>
+
+<h2 id="nginx-ingress-controller-の場合">Nginx Ingress Controller の場合</h2>
+
+<p>クラスタ外部にApplication Gateway なりGCLB なりを配置するとそれを利用するための料金が発生します。</p>
+
+<p>そのため、AKS 上でNginx を動かしURLルーティングやSSL終端などを行わせることもできます。
+これもIngress Controller が提供されているので、KubernetesのIngress リソースを使って、Ngnixの設定変更ができます。</p>
+
+<p><img src="../docs/images/nginx-ingress-controller.png" alt="" /></p>
+
+<p>AKS でNginx Ingress Controller を使うときは<a href="https://docs.microsoft.com/ja-jp/azure/aks/ingress-basic">こちら</a>の手順になります。Helm を使ってインストールできますのでそれほど大変ではないとおもいます。Ingress リソースのマニュフェストは次のような感じとなり、<code>annotations</code>に<code>kubernetes.io/ingress.class: nginx</code>を指定します。</p>
+
+<pre><code class="language-yaml">apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: hello-world-ingress
+  namespace: ingress-basic
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: &quot;false&quot;
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+  - http:
+      paths:
+      - backend:
+          serviceName: aks-helloworld-one
+          servicePort: 80
+        path: /(.*)
+      - backend:
+          serviceName: aks-helloworld-two
+          servicePort: 80
+        path: /hello-world-two(/|$)(.*)
+</code></pre>
+
+<h1 id="まとめ">まとめ</h1>
+
+<p>Kubernetesクラスターに対するL7でのWebアプリケーションのゲートウェイ処理について整理しました。</p>
+
+<ul>
+<li>Webアプリケーションのゲートウェイ処理を行うには、大きく分けてクラスタ内で行うケースとクラスタ外の専用サービスを利用するパターンがある。</li>
+<li>Ingress ControllerはKubernetesのIngressリソースと連携してゲートウェイ処理の設定変更ができるコントローラである</li>
+<li>Webアプリケーションのゲートウェイ処理を行うソフトウエアやサービスによってIngress Controllerの実装は異なるものの、アプリケーション開発者からみると抽象化したIngressリソースのみを意識すればよくなる</li>
+<li>技術的な側面からだけでなく、組織体制や分掌をふまえたうえでだれがどう運用するか？を考慮した基盤方式設計が大事</li>
+</ul>
+
+<p>Kubernetesはじめクラウドネイティブな世界でのDevOpsでは、<strong>GitOps</strong>という方法が注目されています。<a href="https://twitter.com/superbrothers">すぱぶら</a>さんがめちゃくちゃ分かりやすい資料<a href="https://speakerdeck.com/superbrothers/cloud-native-devops-with-kubernetes-devops-cloudnative-and-gitops">Kubernetes で実践するクラウドネイティブ DevOps</a>を公開してくださったので、こちらをぜひ読んでください。</p>
+
+<h1 id="参考情報">参考情報</h1>
+
+<ul>
+<li><p><a href="https://docs.microsoft.com/ja-jp/azure/application-gateway/ingress-controller-overview">Azure Application Gateway Ingress Controller</a></p></li>
+
+<li><p><a href="https://github.com/kubernetes-sigs/cloud-provider-azure/blob/master/docs/cloud-controller-manager.md">Kubernetes cloud-controller-manager for Azure</a></p></li>
+
+<li><p><a href="https://www.slideshare.net/ToruMakabe/kubernetes-120907020">Kubernetesのしくみ やさしく学ぶ 内部構造とアーキテクチャー</a></p></li>
+
+<li><p><a href="https://www.amazon.co.jp/dp/4873119014/ref=cm_sw_r_tw_dp_U_x_ZJV0EbW8PHS6W">Kubernetesで実践するクラウドネイティブDevOps John Arundel  /Justin Domingus(著) 須田 一輝 (監修) 渡邉 了介(翻訳)</a></p></li>
+</ul>
+
+</div>
+
+
+
+    </main>
+
+    
+  </body>
+</html>
