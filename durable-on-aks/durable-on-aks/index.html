@@ -132,19 +132,19 @@ func kubernetes deploy <span style=color:#ae81ff>\
 </span><span style=color:#ae81ff></span>    --namespace default <span style=color:#ae81ff>\
 </span><span style=color:#ae81ff></span>    --registry $ACRNAME.azurecr.io <span style=color:#ae81ff>\
 </span><span style=color:#ae81ff></span>    --dry-run &gt;k8sdeploy-dry-run.yaml
-</code></pre></div><p>func kubernetes deployコマンドを実行します。このコマンドを実行すると内部でDockerfileのBuildとコンテナレジストリ(今回はACR使用)へのPushを自動で行い、そののちにKubernetesクラスタ上にDurable FunctionsのDeploymentとServiceなどのリソースをデプロイします。</p><pre><code>func kubernetes deploy \
-    --name $FUNC_NAME \
-    --namespace default \
-    --registry $ACRNAME.azurecr.io
+</code></pre></div><p>func kubernetes deployコマンドを実行します。このコマンドを実行すると内部でDockerfileのBuildとコンテナレジストリ(今回はACR使用)へのPushを自動で行い、そののちにKubernetesクラスタ上にDurable FunctionsのDeploymentとServiceなどのリソースをデプロイします。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>func kubernetes deploy <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    --name $FUNC_NAME <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    --namespace default <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    --registry $ACRNAME.azurecr.io
 
-Running 'docker build -t functionacrxxx.azurecr.io/durable-func /xxx/durable-keda'.........done
-Running 'docker push functionacrxxx.azurecr.io/durable-func'...............................done
+Running <span style=color:#e6db74>&#39;docker build -t functionacrxxx.azurecr.io/durable-func /xxx/durable-keda&#39;</span>.........done
+Running <span style=color:#e6db74>&#39;docker push functionacrxxx.azurecr.io/durable-func&#39;</span>...............................done
 secret/durable-func created
 service/durable-func-http created
 deployment.apps/durable-func-http created
 deployment.apps/durable-func created
 scaledobject.keda.k8s.io/durable-func created
-</code></pre><p>で、本来であればめでたしなのですが、、、この検証記事を書いている時点では次のコマンドを実行するとDurable Functionsでエラーが発生します。そこで、上記のk8sdeploy-dry-run.yamlを以下のように編集してコメントアウトします。</p><blockquote><p>※ まだ絶賛プレビュー中なので、今後変更になるとおもいます。</p></blockquote><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>apiVersion: v1
+</code></pre></div><p>で、本来であればめでたしなのですが、、、この検証記事を書いている時点では次のコマンドを実行するとDurable Functionsでエラーが発生します。そこで、上記のk8sdeploy-dry-run.yamlを以下のように編集してコメントアウトします。</p><blockquote><p>※ まだ絶賛プレビュー中なので、今後変更になるとおもいます。</p></blockquote><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>apiVersion: v1
 kind: Service
 metadata:
   name: durable-func-http
