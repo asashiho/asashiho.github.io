@@ -87,7 +87,7 @@ CONNECTION_STRING<span style=color:#f92672>=</span><span style=color:#66d9ef>$(<
 
 echo $CONNECTION_STRING
 DefaultEndpointsProtocol<span style=color:#f92672>=</span>https;EndpointSuffix<span style=color:#f92672>=</span>core.windows.net;AccountName<span style=color:#f92672>=</span>durablepython22990;AccountKey<span style=color:#f92672>=</span>xxxxxxx
-</code></pre></div><p>シェル変数<code>CONNECTION_STRING</code>にストレージの接続文字列をセットします。</p><h2 id=サンプルのdurable-functionsの作成>サンプルのDurable Functionsの作成</h2><p>Durable Functionsをローカルで開発するときは、Visual Studio Codeが便利です。Azure Functions Extentionを使うと、こんな感じでGUIからFunctionを作成できます。</p><p><img src=../../docs/images/2020-07-20-17-27-05.png alt></p><p>が、ここは頑なにCLIで。</p><p>次のコマンドを実行します。動作確認なのでHTTP Triggerで動作するサンプルを使います。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>func init --docker --worker-runtime python
+</code></pre></div><p>シェル変数<code>CONNECTION_STRING</code>にストレージの接続文字列をセットします。</p><h2 id=サンプルのdurable-functionsの作成>サンプルのDurable Functionsの作成</h2><p>Durable Functionsをローカルで開発するときは、Visual Studio Codeが便利です。Azure Functions Extentionを使うと、こんな感じでGUIからFunctionを作成できます。</p><p><img src=.../2020-07-20-17-27-05.png alt></p><p>が、ここは頑なにCLIで。</p><p>次のコマンドを実行します。動作確認なのでHTTP Triggerで動作するサンプルを使います。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>func init --docker --worker-runtime python
 
 func new <span style=color:#ae81ff>\
 </span><span style=color:#ae81ff></span>    --template <span style=color:#e6db74>&#34;Durable Functions orchestrator (preview)&#34;</span> <span style=color:#ae81ff>\
