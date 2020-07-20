@@ -1,0 +1,244 @@
+<!doctype html><html xmlns=http://www.w3.org/1999/xhtml xml:lang=ja-jp lang=ja-jp><head><link href=https://gmpg.org/xfn/11 rel=profile><meta charset=utf-8><meta name=generator content="Hugo 0.64.0"><meta name=viewport content="width=device-width,initial-scale=1"><title>Durable functions on Kubernetes &#183; ASA Blog</title><meta name=description content><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/print.css media=print><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/poole.css><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/syntax.css><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/hyde.css><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700"><link type=text/css rel=stylesheet href=https://use.fontawesome.com/releases/v5.0.6/css/all.css><link type=text/css rel=stylesheet href=https://aakira.app/css/custom.css><link rel=stylesheet href=https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css integrity=sha384-wITovz90syo1dJWVh32uuETPVEtGigN07tkttEqPv+uR2SE/mbQcG7ATL28aI9H0 crossorigin=anonymous><link rel=apple-touch-icon-precomposed sizes=144x144 href=/apple-touch-icon-144-precomposed.png><link rel="shortcut icon" href=/favicon.png><meta property="og:site_name" content="ASA Blog"><meta property="og:title" content="Durable functions on Kubernetes"><meta property="og:url" content="https://asashiho.github.io/durable-on-aks/durable-on-aks/"><meta property="og:type" content="article"><meta name=twitter:card content="summary"><meta name=twitter:site content="@_dr_asa"><meta name=twitter:creator content="@_dr_asa"><meta property="twitter:title" content="Durable functions on Kubernetes"><meta property="og:description" content><meta property="twitter:description" content><meta property="og:image" content="https://asashiho.github.io/thumbnails/prof.jpg"><meta property="og:image:url" content="https://asashiho.github.io/thumbnails/prof.jpg"></head><body class=theme-base-0d><aside class=sidebar><div class="container sidebar-sticky"><div class=sidebar-about><a href=https://asashiho.github.io/><h1>ASA Blog</h1></a><p class=lead>enjoy a laid-back life</p></div><nav><ul class=sidebar-nav><li><a href=https://asashiho.github.io/>Home</a></li><li><a href=https://github.com/asashiho/>GitHub</a></li><li><a href=https://www.linkedin.com/in/shiho-asa/>LinkedIn</a></li></ul></nav><p>&copy; 2020. All rights reserved.</p></div></aside><main class="content container"><div class=post><h1>Durable functions on Kubernetes</h1><time datetime=2020-07-20T00:00:00Z class=post-date>Mon, Jul 20, 2020</time>
+<a href="http://twitter.com/intent/tweet?url=https%3a%2f%2fasashiho.github.io%2fdurable-on-aks%2fdurable-on-aks%2f&text=Durable%20functions%20on%20Kubernetes" target=_blank title=Tweet><i class="fab fa-twitter"></i></a>&ensp;
+<a href="http://www.facebook.com/sharer.php?u=https%3a%2f%2fasashiho.github.io%2fdurable-on-aks%2fdurable-on-aks%2f&t=Durable%20functions%20on%20Kubernetes" target=_blank title=Facebook><i class="fab fa-facebook"></i></a>&ensp;
+<a href="https://plus.google.com/share?url=https%3a%2f%2fasashiho.github.io%2fdurable-on-aks%2fdurable-on-aks%2f" target=_blank title=google+><i class="fab fa-google-plus"></i></a><hr><p>Durable Functions は、サーバーレスでステートフル関数を記述できる Azure Functionsの拡張機能です。人類の念願だったPythonもサポートされ、業務で使う機会がありましたので、ざっと動作検証しました。</p><h1 id=durable-functions-とは>Durable Functions とは</h1><p>Durable Functionsの主な利用シナリオは、サーバーレスアプリケーションにおける複雑でステートフルな処理を簡単に実装できるものです。</p><blockquote><p>Azure Functionがサポートするトリガーは<a href=https://docs.microsoft.com/ja-jp/azure/azure-functions/functions-triggers-bindings>Azure Functions でのトリガーとバインドの概念</a>にて。</p></blockquote><p>よく使いそうな処理は以下の通りです。</p><h2 id=関数チェーン>関数チェーン</h2><p>関数チェーンは、一連の関数が特定の順序で実行されます。 このパターンでは、ある関数の出力が、別の関数の入力に適用されます。たとえば、<code>F1</code>、<code>F2</code>、<code>F3</code>、<code>F4</code> という関数を逐次処理させたいときは 通常の命令型のコーディング構造を使用して、制御フローを実装できます。 コードは、上から下に実行され条件文やループなどの制御フローを含めることができます。また<code>try/catch/finally</code> ブロックに、エラー処理ロジックを含めることができます。</p><p><img src=https://docs.microsoft.com/ja-jp/azure/azure-functions/durable/media/durable-functions-concepts/function-chaining.png alt=function-chaining></p><p>たとえば、<code>context</code>オブジェクトを使用して、他の関数を名前で呼び出し、パラメーターを渡して、関数の出力を返すことができます。 コードが<code>yield</code>を呼び出すたびに Durable Functionsは、チェックポイントを設定します。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#f92672>import</span> azure.functions <span style=color:#f92672>as</span> func
+<span style=color:#f92672>import</span> azure.durable_functions <span style=color:#f92672>as</span> df
+
+<span style=color:#66d9ef>def</span> <span style=color:#a6e22e>orchestrator_function</span>(context: df<span style=color:#f92672>.</span>DurableOrchestrationContext):
+    x <span style=color:#f92672>=</span> <span style=color:#66d9ef>yield</span> context<span style=color:#f92672>.</span>call_activity(<span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>F1</span><span style=color:#e6db74>&#34;</span>, None)
+    y <span style=color:#f92672>=</span> <span style=color:#66d9ef>yield</span> context<span style=color:#f92672>.</span>call_activity(<span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>F2</span><span style=color:#e6db74>&#34;</span>, x)
+    z <span style=color:#f92672>=</span> <span style=color:#66d9ef>yield</span> context<span style=color:#f92672>.</span>call_activity(<span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>F3</span><span style=color:#e6db74>&#34;</span>, y)
+    result <span style=color:#f92672>=</span> <span style=color:#66d9ef>yield</span> context<span style=color:#f92672>.</span>call_activity(<span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>F4</span><span style=color:#e6db74>&#34;</span>, z)
+    <span style=color:#66d9ef>return</span> result
+
+main <span style=color:#f92672>=</span> df<span style=color:#f92672>.</span>Orchestrator<span style=color:#f92672>.</span>create(orchestrator_function)
+</code></pre></div><h3 id=ファンアウトファンイン>ファンアウト/ファンイン</h3><p>複数の関数を並列で実行し、すべての関数が完了するまで待機できます。複数の関数から返される結果に基づいて集計作業などを行うときに使うと便利です。</p><p><img src=https://docs.microsoft.com/ja-jp/azure/azure-functions/durable/media/durable-functions-concepts/fan-out-fan-in.png alt=fan-out-fan-in></p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#f92672>import</span> azure.functions <span style=color:#f92672>as</span> func
+<span style=color:#f92672>import</span> azure.durable_functions <span style=color:#f92672>as</span> df
+
+
+<span style=color:#66d9ef>def</span> <span style=color:#a6e22e>orchestrator_function</span>(context: df<span style=color:#f92672>.</span>DurableOrchestrationContext):
+    parallel_tasks <span style=color:#f92672>=</span> []
+
+    <span style=color:#75715e># 並行して処理するN個の作業項目のリストを取得</span>
+    work_batch <span style=color:#f92672>=</span> <span style=color:#66d9ef>yield</span> context<span style=color:#f92672>.</span>call_activity(<span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>F1</span><span style=color:#e6db74>&#34;</span>, None)
+
+    <span style=color:#66d9ef>for</span> i <span style=color:#f92672>in</span> range(<span style=color:#ae81ff>0</span>, len(work_batch)):
+        parallel_tasks<span style=color:#f92672>.</span>append(context<span style=color:#f92672>.</span>call_activity(<span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>F2</span><span style=color:#e6db74>&#34;</span>, work_batch[i]))
+    
+    outputs <span style=color:#f92672>=</span> <span style=color:#66d9ef>yield</span> context<span style=color:#f92672>.</span>task_all(parallel_tasks)
+
+    <span style=color:#75715e># N個の出力をすべて集計し、結果をF3に送信</span>
+    total <span style=color:#f92672>=</span> sum(outputs)
+    <span style=color:#66d9ef>yield</span> context<span style=color:#f92672>.</span>call_activity(<span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>F3</span><span style=color:#e6db74>&#34;</span>, total)
+
+main <span style=color:#f92672>=</span> df<span style=color:#f92672>.</span>Orchestrator<span style=color:#f92672>.</span>create(orchestrator_function)
+</code></pre></div><p>ファンアウト作業は、<code>F2</code>関数の複数のインスタンスに分散されます。<code>context.task_all</code> が呼び出され、すべての呼び出された関数が終了するまで待機します。 その後、<code>F2</code>関数の出力が動的タスク リストから集計され、<code>F3</code>関数に渡されます。
+<code>context.task_all</code> の <code>yield</code> 呼び出し時に設定されるチェックポイントによって、実行途中でクラッシュや再起動した場合でも、完了済みのすべてのタスクをリトライする必要がなくなります。Orchestrator関数にはタイムアウトの制約がないので、時間がかかる処理でも実装ができます。(ただしOrchestrator関数から呼び出されるActivity関数にはタイムアウトがあります！注意！！)</p><h2 id=モニタリング>モニタリング</h2><p>特定の条件が満たされるまでポーリングする処理をかんたんに実装できます。定期ジョブなどであればタイマートリガーで処理が書けますが、実行間隔の定義が静的になるためインスタンスの有効期間の管理が必要になります。Durable Functionsを使って、繰り返し間隔の作成、タスクの有効期間の管理、単一のオーケストレーションからの監視プロセスの作成を実行できます。</p><p>条件が満たされたときに実行を終了するか、別の関数から持続的オーケストレーション クライアントを使用してモニターを終了できます。 また指数関数的バックオフなどで特定の条件に基づいてモニターの<code>wait</code>間隔を変更できます。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#f92672>import</span> azure.functions <span style=color:#f92672>as</span> func
+<span style=color:#f92672>import</span> azure.durable_functions <span style=color:#f92672>as</span> df
+<span style=color:#f92672>import</span> json
+<span style=color:#f92672>from</span> datetime <span style=color:#f92672>import</span> timedelta 
+
+<span style=color:#66d9ef>def</span> <span style=color:#a6e22e>orchestrator_function</span>(context: df<span style=color:#f92672>.</span>DurableOrchestrationContext):
+    job <span style=color:#f92672>=</span> json<span style=color:#f92672>.</span>loads(context<span style=color:#f92672>.</span>get_input())
+    job_id <span style=color:#f92672>=</span> job[<span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>jobId</span><span style=color:#e6db74>&#34;</span>]
+    polling_interval <span style=color:#f92672>=</span> job[<span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>pollingInterval</span><span style=color:#e6db74>&#34;</span>]
+    expiry_time <span style=color:#f92672>=</span> job[<span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>expiryTime</span><span style=color:#e6db74>&#34;</span>]
+
+    <span style=color:#66d9ef>while</span> context<span style=color:#f92672>.</span>current_utc_datetime <span style=color:#f92672>&lt;</span> expiry_time:
+        job_status <span style=color:#f92672>=</span> <span style=color:#66d9ef>yield</span> context<span style=color:#f92672>.</span>call_activity(<span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>GetJobStatus</span><span style=color:#e6db74>&#34;</span>, job_id)
+        <span style=color:#66d9ef>if</span> job_status <span style=color:#f92672>==</span> <span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>Completed</span><span style=color:#e6db74>&#34;</span>:
+            <span style=color:#75715e># 条件が満たされたときにアクションを実行</span>
+            <span style=color:#66d9ef>yield</span> context<span style=color:#f92672>.</span>call_activity(<span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>SendAlert</span><span style=color:#e6db74>&#34;</span>, job_id)
+            <span style=color:#66d9ef>break</span>
+
+        <span style=color:#75715e># Orchestrationのsleeps</span>
+        next_check <span style=color:#f92672>=</span> context<span style=color:#f92672>.</span>current_utc_datetime <span style=color:#f92672>+</span> timedelta(seconds<span style=color:#f92672>=</span>polling_interval)
+        <span style=color:#66d9ef>yield</span> context<span style=color:#f92672>.</span>create_timer(next_check)
+
+main <span style=color:#f92672>=</span> df<span style=color:#f92672>.</span>Orchestrator<span style=color:#f92672>.</span>create(orchestrator_function)
+</code></pre></div><p>たとえばリクエストを受けると、<code>jobId</code>の新しいオーケストレーションインスタンスが作成されます。 インスタンスは、条件が満たされてループが終了するまで、状態をポーリングします。そして<code>nextCheck</code> が<code>expiryTime</code>を超えると、モニターが終了します。 ポーリング間隔は、永続タイマーによって制御されます。</p><h1 id=durable-functionsをkubernetesクラスターで動かす>Durable FunctionsをKubernetesクラスターで動かす</h1><p>Azure FunctionはAzureに限らず、ローカルマシンでの開発やテストをサポートしています。
+開発には<a href="https://docs.microsoft.com/ja-jp/azure/azure-functions/functions-run-local?tabs=linux%2Ccsharp%2Cbash">Azure Functions Core Tools</a>を使います。最新版をインストールしておくとよいでしょう。</p><p>Durable Functionも、このAzure Functions Core Toolsをつかってローカルマシンでの開発・テストができるわけですが、実はコンテナとしてKubernetes上で動かし、イメージはコンテナレジストリーで管理することも可能です。</p><p>なので、Kubernetes上にデプロイする手順をざっとまとめました。なおクラスタ環境にはAzure(AKS/ACR)を利用しています。</p><h2 id=検証環境>検証環境</h2><ul><li>Azure CLI(2.8.0 *)</li><li>Azure Functions Core Tools(3.0.2630)</li><li>Python(Python 3.7.2)</li><li>Docker</li><li>kubectl</li></ul><h2 id=kubernetesクラスターコンテナレジストリのデプロイ>Kubernetesクラスター/コンテナレジストリのデプロイ</h2><p>Durable Functionsを稼働させるためのクラスターとコンテナレジストリーをデプロイします。次のコマンドを実行しAKSとACRを起動します。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>AKSNAME<span style=color:#f92672>=</span><span style=color:#66d9ef>function</span>-aks
+ACRNAME<span style=color:#f92672>=</span>functionacr$RANDOM
+RGNAME<span style=color:#f92672>=</span><span style=color:#66d9ef>function</span>-container
+LOCATION<span style=color:#f92672>=</span>japaneast
+
+az group create -n $RGNAME -l $LOCATION
+az acr create -g $RGNAME -n $ACRNAME --sku Basic
+az aks create <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    -g $RGNAME <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    -n $AKSNAME <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    --node-count <span style=color:#ae81ff>1</span> <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    --generate-ssh-keys <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    --attach-acr $ACRNAME
+
+az aks get-credentials <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    -g $RGNAME <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    -n $AKSNAME
+
+az acr login -n $ACRNAME
+</code></pre></div><p>詳細な手順は<a href=https://docs.microsoft.com/ja-jp/azure/aks/tutorial-kubernetes-deploy-cluster>公式マニュアル</a>にありますので、ご参照ください。</p><h2 id=ストレージの作成>ストレージの作成</h2><p>続いてストレージを作成します。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>STORAGENAME<span style=color:#f92672>=</span>durablepython$RANDOM
+
+az storage account create <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    -n $STORAGENAME <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    -g $RGNAME <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    -l $LOCATION 
+
+CONNECTION_STRING<span style=color:#f92672>=</span><span style=color:#66d9ef>$(</span>az storage account show-connection-string -n $STORAGENAME -o tsv<span style=color:#66d9ef>)</span>
+
+echo $CONNECTION_STRING
+DefaultEndpointsProtocol<span style=color:#f92672>=</span>https;EndpointSuffix<span style=color:#f92672>=</span>core.windows.net;AccountName<span style=color:#f92672>=</span>durablepython22990;AccountKey<span style=color:#f92672>=</span>xxxxxxx
+</code></pre></div><p>シェル変数<code>CONNECTION_STRING</code>にストレージの接続文字列をセットします。</p><h2 id=サンプルのdurable-functionsの作成>サンプルのDurable Functionsの作成</h2><p>Durable Functionsをローカルで開発するときは、Visual Studio Codeが便利です。Azure Functions Extentionを使うと、こんな感じでGUIからFunctionを作成できます。</p><p><img src=../../docs/images/2020-07-20-17-27-05.png alt></p><p>が、ここは頑なにCLIで。</p><p>次のコマンドを実行します。動作確認なのでHTTP Triggerで動作するサンプルを使います。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>func init --docker --worker-runtime python
+
+func new <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    --template <span style=color:#e6db74>&#34;Durable Functions orchestrator (preview)&#34;</span> <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    -n HelloOrchestrator
+
+func new <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    --template <span style=color:#e6db74>&#34;Durable Functions activity (preview)&#34;</span> <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    -n Hello
+
+func new <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    --template <span style=color:#e6db74>&#34;Durable Functions HTTP starter (preview)&#34;</span> <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    -n DurableFunctionsHttpStart
+</code></pre></div><p><code>azure-functions-durable</code>をインストールする必要がありますので、requirements.txtに以下の記述を追加します。</p><pre><code>azure-functions-durable&gt;=1.0.0b6
+</code></pre><p>また、検証のためHTTP Triggerの認証を<code>anonymous</code>にするため<code>authLevel</code>に設定します。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-json data-lang=json>{
+  <span style=color:#f92672>&#34;scriptFile&#34;</span>: <span style=color:#e6db74>&#34;__init__.py&#34;</span>,
+  <span style=color:#f92672>&#34;bindings&#34;</span>: [
+    {
+      <span style=color:#f92672>&#34;authLevel&#34;</span>: <span style=color:#e6db74>&#34;anonymous&#34;</span>,
+      <span style=color:#f92672>&#34;name&#34;</span>: <span style=color:#e6db74>&#34;req&#34;</span>,
+      <span style=color:#f92672>&#34;type&#34;</span>: <span style=color:#e6db74>&#34;httpTrigger&#34;</span>,
+      <span style=color:#f92672>&#34;direction&#34;</span>: <span style=color:#e6db74>&#34;in&#34;</span>,
+      <span style=color:#f92672>&#34;route&#34;</span>: <span style=color:#e6db74>&#34;orchestrators/{functionName}&#34;</span>,
+      <span style=color:#f92672>&#34;methods&#34;</span>: [
+        <span style=color:#e6db74>&#34;post&#34;</span>,
+        <span style=color:#e6db74>&#34;get&#34;</span>
+      ]
+    },
+</code></pre></div><p>必要に応じてローカル環境でテストしてください。なおその際はDockerfileに以下の設定を追加して<code>WEBSITE_HOSTNAME</code>と<code>AzureWebJobsStorage</code>の値をコンテナに渡してください。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-dockerfile data-lang=dockerfile><span style=color:#66d9ef>ENV</span> WEBSITE_HOSTNAME<span style=color:#f92672>=</span>localhost:80<span style=color:#960050;background-color:#1e0010>
+</span><span style=color:#960050;background-color:#1e0010></span><span style=color:#66d9ef>ARG</span> STORAGE_ACCOUNT<span style=color:#960050;background-color:#1e0010>
+</span><span style=color:#960050;background-color:#1e0010></span><span style=color:#66d9ef>ENV</span> AzureWebJobsStorage<span style=color:#f92672>=</span>$STORAGE_ACCOUNT<span style=color:#960050;background-color:#1e0010>
+</span></code></pre></div><h2 id=durable-functionsを-aksにデプロイ>Durable Functionsを AKSにデプロイ</h2><p>これでDurable Functionsの設定ができたので、AKS上にデプロイします。</p><p>まず、local.settings.jsonの<code>AzureWebJobsStorage</code>に<code>CONNECTION_STRING</code>の値をセットしてください。また<code>WEBSITE_HOSTNAME</code>に<code>localhost:80</code>をセットします。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-json data-lang=json>{
+  <span style=color:#f92672>&#34;IsEncrypted&#34;</span>: <span style=color:#66d9ef>false</span>,
+  <span style=color:#f92672>&#34;Values&#34;</span>: {
+    <span style=color:#f92672>&#34;FUNCTIONS_WORKER_RUNTIME&#34;</span>: <span style=color:#e6db74>&#34;python&#34;</span>,
+    <span style=color:#f92672>&#34;AzureWebJobsStorage&#34;</span>: <span style=color:#e6db74>&#34;DefaultEndpointsProtocol=https;EndpointSuffix=core.windows.net;AccountName=durablepython22990;AccountKey=xxxxx&#34;</span>,
+    <span style=color:#f92672>&#34;WEBSITE_HOSTNAME&#34;</span>: <span style=color:#e6db74>&#34;localhost:80&#34;</span>
+  }
+}
+</code></pre></div><p>ここではKubernetes上で動かす、Durable Functionsの名前を<code>FUNC_NAME</code>にセットします。が、コンテナ上で運用するときにやたらめったら長い名前をつけると、Pod名が辛くなるだけなのでシンプル伊豆ベストで。</p><p>ここで、<code>func kubernetes deploy</code>コマンドをdry-runして、Kubernetesにデプロイされるマニュフェストを<code>k8sdeploy-dry-run.yaml</code>に書き出しておきます。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>FUNC_NAME<span style=color:#f92672>=</span>durable-func
+func kubernetes deploy <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    --name $FUNC_NAME <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    --namespace default <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    --registry $ACRNAME.azurecr.io <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>    --dry-run &gt;k8sdeploy-dry-run.yaml
+</code></pre></div><p>func kubernetes deployコマンドを実行します。このコマンドを実行すると内部でDockerfileのBuildとコンテナレジストリ(今回はACR使用)へのPushを自動で行い、そののちにKubernetesクラスタ上にDurable FunctionsのDeploymentとServiceなどのリソースをデプロイします。</p><pre><code>func kubernetes deploy \
+    --name $FUNC_NAME \
+    --namespace default \
+    --registry $ACRNAME.azurecr.io
+
+Running 'docker build -t functionacrxxx.azurecr.io/durable-func /xxx/durable-keda'.........done
+Running 'docker push functionacrxxx.azurecr.io/durable-func'...............................done
+secret/durable-func created
+service/durable-func-http created
+deployment.apps/durable-func-http created
+deployment.apps/durable-func created
+scaledobject.keda.k8s.io/durable-func created
+</code></pre><p>で、本来であればめでたしなのですが、、、この検証記事を書いている時点では次のコマンドを実行するとDurable Functionsでエラーが発生します。そこで、上記のk8sdeploy-dry-run.yamlを以下のように編集してコメントアウトします。</p><blockquote><p>※ まだ絶賛プレビュー中なので、今後変更になるとおもいます。</p></blockquote><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>apiVersion: v1
+kind: Service
+metadata:
+  name: durable-func-http
+  namespace: default
+  <span style=color:#75715e># annotations:</span>
+  <span style=color:#75715e>#   osiris.deislabs.io/enabled: true</span>
+  <span style=color:#75715e>#   osiris.deislabs.io/deployment: durable-func-http</span>
+spec:
+  selector:
+    app: durable-func-http
+    ～中略 
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: durable-func-http
+  namespace: default
+  labels:
+    app: durable-func-http
+  <span style=color:#75715e># annotations:</span>
+  <span style=color:#75715e>#   osiris.deislabs.io/enabled: true</span>
+  <span style=color:#75715e>#   osiris.deislabs.io/minReplicas: 1</span>
+spec:
+  replicas: <span style=color:#ae81ff>1</span>
+  ～中略
+    spec:
+      containers:
+      - name: durable-func-http
+        image: functionacr1024.azurecr.io/durable-func
+        ports:
+        - containerPort: <span style=color:#ae81ff>80</span>
+        <span style=color:#75715e># env:</span>
+        <span style=color:#75715e># - name: AzureFunctionsJobHost__functions__0</span>
+        <span style=color:#75715e>#   value: DurableFunctionsHttpStart</span>
+        ～中略
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: durable-func
+  namespace: default
+  labels:
+    app: durable-func
+spec:
+    ～中略
+    spec:
+      containers:
+      - name: durable-func
+        image: functionacr1024.azurecr.io/durable-func
+        <span style=color:#75715e># env:</span>
+        <span style=color:#75715e># - name: AzureFunctionsJobHost__functions__0</span>
+        <span style=color:#75715e>#   value: Hello</span>
+        <span style=color:#75715e># - name: AzureFunctionsJobHost__functions__1</span>
+        <span style=color:#75715e>#   value: HelloOrchestrator</span>
+</code></pre></div><p>次のコマンドでYAMLファイルをクラスタに反映します。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>kubectl apply -f k8sdeploy-dry-run.yaml
+</code></pre></div><h2 id=動作確認>動作確認</h2><p>これでデプロイできたので、Podを確認します。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>kubectl get po
+NAME                                 READY   STATUS    RESTARTS   AGE
+durable-func-5d4587d56b-kcbdv        1/1     Running   <span style=color:#ae81ff>0</span>          2m15s
+durable-func-http-554bf775b5-6hstc   1/1     Running   <span style=color:#ae81ff>0</span>          2m15s
+</code></pre></div><p>ログも確認します。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>kubectl logs durable-func-http-554bf775b5-6hstc
+</code></pre></div><p>次のコマンドでアクセス先の<code>EXTERNAL-IP</code>を確認します。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>kubectl get svc
+NAME                TYPE           CLUSTER-IP     EXTERNAL-IP     PORT<span style=color:#f92672>(</span>S<span style=color:#f92672>)</span>        AGE
+durable-func-http   LoadBalancer   10.0.156.233   20.44.143.118   80:31467/TCP   38s
+</code></pre></div><p>次のURLにGETリスエストを送信し、レスポンスの<code>statusQueryGetUri</code>を確認します。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>GET http://&lt;Your EXTERNAL-IP&gt;/api/orchestrators/HelloOrchestrator
+
+<span style=color:#f92672>{</span>
+  <span style=color:#e6db74>&#34;id&#34;</span>: <span style=color:#e6db74>&#34;be201d8e011e4164b52ca33a78ac20ac&#34;</span>, 
+  <span style=color:#e6db74>&#34;statusQueryGetUri&#34;</span>: <span style=color:#e6db74>&#34;http://20.44.143.118/runtime/webhooks/durabletask/instances/be201d8e011e4164b52ca33a78ac20ac?taskHub=DurableFunctionsHub&amp;connection=Storage&amp;code=0etmRPtk4xRX9BowFayEN4CM81QoEzon7YAYaPhFp5A4zb0uUa4vPA==&#34;</span>, 
+  <span style=color:#e6db74>&#34;sendEventPostUri&#34;</span>: <span style=color:#e6db74>&#34;http://20.44.143.118/runtime/webhooks/durabletask/instances/xxxx&#34;</span>,
+  <span style=color:#e6db74>&#34;terminatePostUri&#34;</span>: <span style=color:#e6db74>&#34;http://20.44.143.118/runtime/webhooks/durabletask/instances/xxxx&#34;</span>,
+  <span style=color:#e6db74>&#34;rewindPostUri&#34;</span>: <span style=color:#e6db74>&#34;http://20.44.143.118/runtime/webhooks/durabletask/instances/xxxx&#34;</span>,
+  <span style=color:#e6db74>&#34;purgeHistoryDeleteUri&#34;</span>: <span style=color:#e6db74>&#34;http://20.44.143.118/runtime/webhooks/durabletask/instances/xxxx&#34;</span>
+<span style=color:#f92672>}</span>
+</code></pre></div><p>なお、デプロイしたサンプルはOrchestratorがHello関数呼び出し、パラメータを渡して関数の出力を返すものです。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#f92672>import</span> azure.functions <span style=color:#f92672>as</span> func
+<span style=color:#f92672>import</span> azure.durable_functions <span style=color:#f92672>as</span> df
+
+<span style=color:#66d9ef>def</span> <span style=color:#a6e22e>orchestrator_function</span>(context: df<span style=color:#f92672>.</span>DurableOrchestrationContext):
+    result1 <span style=color:#f92672>=</span> <span style=color:#66d9ef>yield</span> context<span style=color:#f92672>.</span>call_activity(<span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>Hello</span><span style=color:#e6db74>&#39;</span>, <span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>Tokyo</span><span style=color:#e6db74>&#34;</span>)
+    result2 <span style=color:#f92672>=</span> <span style=color:#66d9ef>yield</span> context<span style=color:#f92672>.</span>call_activity(<span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>Hello</span><span style=color:#e6db74>&#39;</span>, <span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>Seattle</span><span style=color:#e6db74>&#34;</span>)
+    result3 <span style=color:#f92672>=</span> <span style=color:#66d9ef>yield</span> context<span style=color:#f92672>.</span>call_activity(<span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>Hello</span><span style=color:#e6db74>&#39;</span>, <span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>London</span><span style=color:#e6db74>&#34;</span>)
+    <span style=color:#66d9ef>return</span> [result1, result2, result3]
+
+main <span style=color:#f92672>=</span> df<span style=color:#f92672>.</span>Orchestrator<span style=color:#f92672>.</span>create(orchestrator_function)
+</code></pre></div><p>ここで<code>statusQueryGetUri</code>にGETリスエストを送信します。<code>output</code>を確認すると、呼び出した関数からの値が返っているのがわかります。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-json data-lang=json>{
+    <span style=color:#f92672>&#34;name&#34;</span>: <span style=color:#e6db74>&#34;HelloOrchestrator&#34;</span>,
+    <span style=color:#f92672>&#34;instanceId&#34;</span>: <span style=color:#e6db74>&#34;be201d8e011e4164b52ca33a78ac20ac&#34;</span>,
+    <span style=color:#f92672>&#34;runtimeStatus&#34;</span>: <span style=color:#e6db74>&#34;Completed&#34;</span>,
+    <span style=color:#f92672>&#34;input&#34;</span>: <span style=color:#66d9ef>null</span>,
+    <span style=color:#f92672>&#34;customStatus&#34;</span>: <span style=color:#66d9ef>null</span>,
+    <span style=color:#f92672>&#34;output&#34;</span>: [
+        <span style=color:#e6db74>&#34;Hello Tokyo!&#34;</span>,
+        <span style=color:#e6db74>&#34;Hello Seattle!&#34;</span>,
+        <span style=color:#e6db74>&#34;Hello London!&#34;</span>
+    ],
+}
+</code></pre></div><p>あとはDurable Functionsで任意の処理を書いてKubernetesクラスタにデプロイしていけばいいと思います。</p><h2 id=補足-kedaによるauto-autoscalerについて>[補足] KEDAによるAuto Autoscalerについて</h2><p><a href=https://github.com/kedacore/keda>KEDA</a>とはKubernetes ベースのイベントドリブンな自動スケーリングのしくみで、Azure Functionsと組み合わして、Kubernetes でのイベント ドリブンな自動スケーリングを提供できます。</p><p>イベントを契機にPodをオートスケールさせることができ、かつゼロスケールも可能なのが特徴です。</p><p><img src=https://keda.sh/img/keda-arch.png alt=Architecture></p><p><a href=https://keda.sh/>KEDA</a>はCNCFにて管理するOSSプロジェクトですが、さまざまなイベントソースをトリガーにスケーリングの設定できます。</p><ul><li>ActiveMQ Artemis</li><li>Apache Kafka</li><li>AWS SQS Queue</li><li>AWS Kinesis Stream</li><li>Azure Blob Storage</li><li>Azure Event Hubs</li><li>Azure Service Bus</li><li>Google Cloud Platform‎ Pub/Sub</li><li>Prometheus
+などなどなど。</li></ul><p>なお、今回のサンプルでのHTTP Triggerはサポート対象外です。もし他のイベントソースをトリガーにDurable Functionsを動かす必要があれば別途検証してみたいとおもいます。</p><h1 id=まとめ>まとめ</h1><p>ざっと確認しただけなので、細かいところまで検証しきれてないですが、以下が分かりました。</p><ul><li>Durable Functions Python は便利</li><li>Durable Functions Python はKubernetes クラスタで普通に動く</li><li>(ただし、まだもろもろがプレビュー中)</li><li>KafkaやMQ、クラウドの各種サービスなどをトリガーにする場合は、KEDA によるスケーリングを検討するとよい</li></ul><p>Enjoy!</p><h1 id=参考>参考：</h1><ul><li><a href=https://www.slideshare.net/yokawasa/azure-functions-20-deep-dive>Azure Functions 2.0 Deep Dive - デベロッパーのための最新開発ガイド</a></li><li><a href=https://docs.microsoft.com/ja-jp/azure/azure-functions/durable/durable-functions-overview>Durable Functions とは</a></li><li><a href="https://docs.microsoft.com/ja-jp/azure/azure-functions/functions-run-local?tabs=linux%2Ccsharp%2Cbash">Azure Functions Core Tools の操作</a></li><li><a href=github.com/Azure/azure-functions-core-tools>azure-functions-core-tools</a></li><li><a href=https://docs.microsoft.com/ja-jp/azure/azure-functions/functions-kubernetes-keda>KEDA を使用した Kubernetes での Azure Functions</a></li></ul></div></main></body></html>
