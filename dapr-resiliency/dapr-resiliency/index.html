@@ -1,0 +1,273 @@
+<!doctype html><html xmlns=http://www.w3.org/1999/xhtml xml:lang=ja-jp lang=ja-jp><head><link href=https://gmpg.org/xfn/11 rel=profile><meta charset=utf-8><meta name=generator content="Hugo 0.64.0"><meta name=viewport content="width=device-width,initial-scale=1"><title>Daprによる分散アプリケーションのリトライ処理について &#183; ASA Blog</title><meta name=description content="Daprを使った分散アプリケーションでリトライ処理を行う方法を整理しました。"><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/print.css media=print><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/poole.css><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/syntax.css><link type=text/css rel=stylesheet href=https://asashiho.github.io/css/hyde.css><link rel=stylesheet href="https://fonts.googleapis.com/css?family=Abril+Fatface|PT+Sans:400,400i,700"><link type=text/css rel=stylesheet href=https://use.fontawesome.com/releases/v5.0.6/css/all.css><link type=text/css rel=stylesheet href=https://aakira.app/css/custom.css><link rel=stylesheet href=https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.7.1/katex.min.css integrity=sha384-wITovz90syo1dJWVh32uuETPVEtGigN07tkttEqPv+uR2SE/mbQcG7ATL28aI9H0 crossorigin=anonymous><link rel=apple-touch-icon-precomposed sizes=144x144 href=/apple-touch-icon-144-precomposed.png><link rel="shortcut icon" href=/favicon.png><link rel=stylesheet href=https://cdn.jsdelivr.net/npm/katex@0.10.0-rc.1/dist/katex.min.css integrity=sha384-D+9gmBxUQogRLqvARvNLmA9hS2x//eK1FhVb9PiU86gmcrBrJAQT8okdJ4LMp2uv crossorigin=anonymous><script defer src=https://cdn.jsdelivr.net/npm/katex@0.10.0-rc.1/dist/katex.min.js integrity=sha384-483A6DwYfKeDa0Q52fJmxFXkcPCFfnXMoXblOkJ4JcA8zATN6Tm78UNL72AKk+0O crossorigin=anonymous></script><script defer src=https://cdn.jsdelivr.net/npm/katex@0.10.0-rc.1/dist/contrib/auto-render.min.js integrity=sha384-yACMu8JWxKzSp/C1YV86pzGiQ/l1YUfE8oPuahJQxzehAjEt2GiQuy/BIvl9KyeF crossorigin=anonymous onload=renderMathInElement(document.body);></script><script>document.addEventListener("DOMContentLoaded",function(){renderMathInElement(document.body,{delimiters:[{left:"$$",right:"$$",display:true},{left:"\\[",right:"\\]",display:true},{left:"$",right:"$",display:false},{left:"\\(",right:"\\)",display:false}]});});</script><meta property="og:site_name" content="ASA Blog"><meta property="og:title" content="Daprによる分散アプリケーションのリトライ処理について"><meta property="og:url" content="https://asashiho.github.io/dapr-resiliency/dapr-resiliency/"><meta property="og:type" content="article"><meta name=twitter:card content="summary"><meta name=twitter:site content="@_dr_asa"><meta name=twitter:creator content="@_dr_asa"><meta property="twitter:title" content="Daprによる分散アプリケーションのリトライ処理について"><meta property="og:description" content="Daprを使った分散アプリケーションでリトライ処理を行う方法を整理しました。"><meta property="twitter:description" content="Daprを使った分散アプリケーションでリトライ処理を行う方法を整理しました。"><meta property="og:image" content="https://asashiho.github.io/thumbnails/prof.jpg"><meta property="og:image:url" content="https://asashiho.github.io/thumbnails/prof.jpg"></head><body class=theme-base-0d><aside class=sidebar><div class="container sidebar-sticky"><div class=sidebar-about><a href=https://asashiho.github.io/><h1>ASA Blog</h1></a><p class=lead>enjoy a laid-back life</p></div><nav><ul class=sidebar-nav><li><a href=https://asashiho.github.io/>Home</a></li><li><a href=https://github.com/asashiho/>GitHub</a></li><li><a href=https://www.linkedin.com/in/shiho-asa/>LinkedIn</a></li></ul></nav><p>&copy; 2022. All rights reserved.</p></div></aside><main class="content container"><div class=post><h1>Daprによる分散アプリケーションのリトライ処理について</h1><time datetime=2022-06-28T00:00:00Z class=post-date>Tue, Jun 28, 2022</time>
+<a href="http://twitter.com/intent/tweet?url=https%3a%2f%2fasashiho.github.io%2fdapr-resiliency%2fdapr-resiliency%2f&text=Dapr%e3%81%ab%e3%82%88%e3%82%8b%e5%88%86%e6%95%a3%e3%82%a2%e3%83%97%e3%83%aa%e3%82%b1%e3%83%bc%e3%82%b7%e3%83%a7%e3%83%b3%e3%81%ae%e3%83%aa%e3%83%88%e3%83%a9%e3%82%a4%e5%87%a6%e7%90%86%e3%81%ab%e3%81%a4%e3%81%84%e3%81%a6" target=_blank title=Tweet><i class="fab fa-twitter"></i></a>&ensp;
+<a href="http://www.facebook.com/sharer.php?u=https%3a%2f%2fasashiho.github.io%2fdapr-resiliency%2fdapr-resiliency%2f&t=Dapr%e3%81%ab%e3%82%88%e3%82%8b%e5%88%86%e6%95%a3%e3%82%a2%e3%83%97%e3%83%aa%e3%82%b1%e3%83%bc%e3%82%b7%e3%83%a7%e3%83%b3%e3%81%ae%e3%83%aa%e3%83%88%e3%83%a9%e3%82%a4%e5%87%a6%e7%90%86%e3%81%ab%e3%81%a4%e3%81%84%e3%81%a6" target=_blank title=Facebook><i class="fab fa-facebook"></i></a>&ensp;
+<a href="https://plus.google.com/share?url=https%3a%2f%2fasashiho.github.io%2fdapr-resiliency%2fdapr-resiliency%2f" target=_blank title=google+><i class="fab fa-google-plus"></i></a><hr><p>お仕事でプリセールスをして極めてミッションクリティカルな業務システムに携わっているため、お客様やSIパートナー様といっしょに「絶対に止まらないシステム」について検討することが多くあります。インフラの可用性については、すでに多く議論されているのですが、いわゆるクラウドネイティブアプリケーションの場合は、分散システムを考慮したアプリケーションアーキテクチャについて検討する必要があります。</p><p>これはクラウドに限った話ではないのですが、分散システムでは一過性の障害をなくすことはできません。なので分散システムにおいて「SLAを100%にするぞ！」ではなく、「障害が起こっても素早く回復させる」「一部の障害を系全体に伝播させない」というようなアプローチのほうが筋が良いといえるでしょう。</p><p><a href=https://docs.microsoft.com/ja-jp/azure/architecture/framework/resiliency/app-design-error-handling>参考: Azure で回復性があるアプリケーションを実現するためのエラー処理</a></p><p>クラウドネイティブなアプリケーションは、クラウドベンダーが提供するサービス/ユーザが個別で開発するシステムサービスを組み合わせて開発することで、クラウドの持ち味であるアジリティやスケーラビリティを活かすことができますが、次のような分散システムが本質的に持つ技術的課題もあります。</p><ul><li>サービス間の呼び出し</li><li>サービス間での状態共有</li><li>システムの監視</li><li>シークレットの管理</li><li>障害部分のみ切り離してサービスを継続させる</li></ul><p>Microsoftは、クラウドネイティブなシステムにおいて分散処理を実装するランタイムである「<a href=https://dapr.io/>Dapr(Distributed Application Runtime)</a>」をオープンソースとして開発し、CNCFに寄贈しました。このDaprは上記の課題をアプリケーションランタイムで解決しようというアプローチをとっています。</p><h1 id=daprが提供する機能>Daprが提供する機能</h1><p>Daprはライブラリのようにアプリケーションに組み込むのではなく、Dapr自身がコンテナあるいはプロセスとして実行され、それをサービスからHTTP/gRPC API経由で呼び出して利用するビルディングブロックとして実現されているのが特徴です。</p><p><img src=https://docs.dapr.io/images/overview.png alt=ビルディングブロック></p><ul><li><p><a href=https://docs.dapr.io/developing-applications/building-blocks/service-invocation/>Service Invocation</a>
+リトライ、分散トレースなどのマイクロサービスに不可欠な機能をサポートするサービス間通信機能</p></li><li><p><a href=https://docs.dapr.io/developing-applications/building-blocks/state-management/>State management</a>
+キー/バリュー形式の状態管理
+状態を保管するコンポーネントとしてRedis/CosmosDB/MySQLなどがある</p></li><li><p><a href=https://docs.dapr.io/developing-applications/building-blocks/pubsub/>Publish & subscribe messaging</a>
+publish/Subscribe形式のメッセージング機能</p></li><li><p><a href=https://docs.dapr.io/developing-applications/building-blocks/bindings/>Bindings</a>
+データベースやキュー、ファイルシステムなどにイベントを送受信する機能</p></li><li><p><a href=https://docs.dapr.io/developing-applications/building-blocks/actors/>Actors</a>
+アクターズパターンに関連する機能</p></li><li><p><a href=https://docs.dapr.io/developing-applications/building-blocks/observability/>Observability</a>
+各種メトリックス、ログ、トレース機能</p></li><li><p><a href=https://docs.dapr.io/developing-applications/building-blocks/secrets/>Secrets management</a>
+秘匿情報の管理機能
+AWS Secrets Manager/GCP Secrets Manager/Azure Key Vaultなどと連携可能</p></li><li><p><a href=https://docs.dapr.io/developing-applications/building-blocks/configuration/>Configuration</a>
+アプリケーションの構成管理</p></li></ul><h2 id=daprのアーキテクチャ>Daprのアーキテクチャ</h2><p>Daprは、HTTPおよびgRPC APIを、コンテナーまたはプロセスとしてサイドカーアーキテクチャとして公開し、アプリケーションコードにDaprランタイムコードを含める必要はありません。</p><p><img src=https://docs.dapr.io/images/overview_kubernetes.png alt></p><p>といわれても、何が嬉しいのかちょっとピンとこないですよね。なにをかくそう、私もです。</p><p>この記事では、Daprの数ある機能のうち</p><ul><li>Service Invocation</li><li>State management</li></ul><p>の2つについてコードを書いて検証したことをまとめました。</p><h2 id=システムアーキテクチャを考える>システムアーキテクチャを考える</h2><p>というわけで、とあるエンタープライズ企業向けにTodoアプリを開発する例で考えます。</p><p>このTodoアプリの機能要件は、利用者が入力したタスクをサーバで受け取りサーバで処理してなんらかのデータストアに永続保存できることとします。また既存のオフィス統合システムのAPIを呼び出し、本日のスケジュールを取得して表示する機能も必要です。</p><p><img src=../docs/images/sample-overview.png alt></p><p>ただし、スケジュールを管理するシステムはSLAが低く、ネットワーク的にも遅延が発生します。しかしながらこのTodoアプリはミッションクリティカルな基幹業務システムで、もしこのシステムがダウンすると多大なる業務影響が発生します。また、お客様がクラウドの大規模システム障害とベンダーロックインを懸念されていて、マルチクラウドで動くシステムが望ましいという要件もあります。。</p><h2 id=azureで動かす前提でアプリを作る場合>Azureで動かす前提でアプリを作る場合</h2><p>フロントエンドからバックエンドを呼び出し、データを分散データストアであるCosmos DBに保存し、同じくバックエンドから外部APIをコールしてスケジュールデータを取得して画面にデータを返せばよさそうです。開発するフロントエンドはコンテナ化して、Azure Kubernetes ServiceやAzure Container Appsなどでホストしてうごかせばよさそうです。フロントエンドはStatic Web Appsなども活用できそうです。</p><p><img src=../docs/images/sample-before.png alt></p><p>ただし、マルチクラウドで動くことを要件としてあげられているため、将来的にCosmos DBが別のデータストアになる可能性があります。その場合アプリケーションの改修が必要になります。</p><p>また、呼び出し先の外部APIはSLAが低いため一過性の障害が発生する可能性があります。そのため、アプリケーション側でリトライ処理/サーキットブレーカー等の考慮が必要です。</p><blockquote><p>詳細については、以前に翔泳社のCodeZineで記事を書きましたので興味のある方はご覧ください。<a href=https://codezine.jp/article/detail/14861>Kubernetesでカオスエンジニアリング ～サーキットブレーカーパターンで回復性の高いシステムを構築する</a></p></blockquote><h2 id=daprを使った分散アプリケーションの場合>Daprを使った分散アプリケーションの場合</h2><p>上記の要件をアプリケーション目線で考えると</p><ul><li>永続データを透過的に管理したい</li><li>外部サービス呼び出し時にミドルウエア的な処理を入れたい</li></ul><p>ができれば開発者は楽ができそうです。これをアプリケーションランタイムで実現できるのがDaprです。</p><p>Daprは業務アプリケーションの横でサイドカーとして動きます。業務アプリケーションから永続データをデータストアに書き込む際/外部サービスを呼び出す場合は必ずDaprを経由します。その際、業務アプリケーションからDaprサイドカーへはHTTP/gRPCのいずれかでlocalhostとして通信します。そしてDaprサイドカー同士で通信してデータを保存したりサービスを呼び出したりします。</p><p><img src=../docs/images/sample-after.png alt></p><p>Daprにはリトライ処理やサーキットブレーカーなどの処理があらかじめ用意されています。そのためアプリケーション側で個別に実装するのではなく、Dapr側で吸収できます。</p><p>またDaprはマイクロソフトが積極的に開発を進めてはいるものの、パブリッククラウド/オンプレミス環境/ローカルの開発環境のいずれでも動作します。データの保存先のデータストアもAzure固有のサービスだけではありません。そのため将来的にAzure以外の環境に移行した場合も、少ない工数でアプリケーションの移植ができる可能性があります。</p><h1 id=アプリケーションの開発>アプリケーションの開発</h1><p>Daprアプリケーションを開発する際、いくつかのお作法があるのでそれを紹介します。(詳細は<a href=https://github.com/asashiho/xxx>サンプルコード</a>を見てください)</p><h2 id=永続データの保存state-management>永続データの保存(State management)</h2><p>Daprでは永続データの管理を<a href=https://docs.dapr.io/developing-applications/building-blocks/state-management/state-management-overview/>State management</a>で行います。</p><p>まず、アプリがどのデータストアにアクセスするのかを定義するのに次のような定義ファイル(<code>cosmosdb.yaml</code>)を用意します。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-yaml data-lang=yaml><span style=color:#66d9ef>apiVersion</span>: dapr.io/v1alpha1
+<span style=color:#66d9ef>kind</span>: Component
+<span style=color:#66d9ef>metadata</span>:
+  <span style=color:#66d9ef>name</span>: cosmosdb      <span style=color:#75715e># コンポーネントの名前/アプリ内から参照する </span>
+  <span style=color:#66d9ef>namespace</span>: default
+<span style=color:#66d9ef>spec</span>:
+  <span style=color:#66d9ef>type</span>: state.azure.cosmosdb  <span style=color:#75715e># Azure Cosmos DBを使う場合</span>
+  <span style=color:#66d9ef>version</span>: v1
+  <span style=color:#66d9ef>metadata</span>:
+  - <span style=color:#66d9ef>name</span>: url
+    <span style=color:#66d9ef>value</span>: https://xxx.documents.azure.com:<span style=color:#ae81ff>443</span>/  <span style=color:#75715e># Endpoint</span>
+  - <span style=color:#66d9ef>name</span>: masterKey
+    <span style=color:#66d9ef>value</span>: xxxx      <span style=color:#75715e># Cosmos DBへのアクセスキー</span>
+  - <span style=color:#66d9ef>name</span>: database   <span style=color:#75715e># Cosmos DBのデータベース名</span>
+    <span style=color:#66d9ef>value</span>: db
+  - <span style=color:#66d9ef>name</span>: collection <span style=color:#75715e># Cosmos DBのコレクション名</span>
+    <span style=color:#66d9ef>value</span>: test
+</code></pre></div><blockquote><p>Cosmos DB以外にもたくさんのState Storeが使えます。State Storeの対応状況と定義ファイルの書き方は<a href=https://docs.dapr.io/reference/components-reference/supported-state-stores/>こちら</a>を参考にしてください。執筆時点(2020/06)でPostgre SQL/Readis/Mongo DBあたりがStableになってます。</p></blockquote><p>DaprのState managementはKey-Value型で管理しますが、この絵が分かりやすいです。</p><p>サービスからデータストアにアクセスするときは、以下のURLをCallします。ここでふと「本番環境でもエンドポイントはlocalhostでよいのかしら？」と思うかもしれませんが、大丈夫です。アプリ本体からみると自身のDaprサイドカーを呼び出すのだけなので、localhostのままです。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>http://localhost:<span style=color:#f92672>{</span>Daprポート番号<span style=color:#f92672>}</span>/v1.0/state/<span style=color:#f92672>{</span>データストアの保存先<span style=color:#f92672>(</span>metadata.name<span style=color:#f92672>)</span><span style=color:#f92672>}</span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>
+</span></code></pre></div><p><img src=https://docs.dapr.io/images/state-management-overview.png alt></p><p>Pythonで書くとこのようになります。変数<code>state_store_name</code>は上記yamlで定義した、<code>metadata.name</code>の値を指定します。今回は「cosmosdb」にしています。</p><p>ただRESTでリクエストを送信しているだけなので、どの言語でもほぼほぼ一緒です。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#75715e># Daprサイドカーのポート設定</span>
+dapr_port <span style=color:#f92672>=</span> os<span style=color:#f92672>.</span>getenv(<span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>DAPR_HTTP_PORT</span><span style=color:#e6db74>&#34;</span>, <span style=color:#ae81ff>3500</span>)
+
+<span style=color:#75715e># Cosmos DB へのState 保存</span>
+state_store_name <span style=color:#f92672>=</span> <span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>cosmosdb</span><span style=color:#e6db74>&#34;</span>
+state_url <span style=color:#f92672>=</span> <span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>http://localhost:{}/v1.0/state/{}</span><span style=color:#e6db74>&#34;</span><span style=color:#f92672>.</span>format(dapr_port, state_store_name)
+
+<span style=color:#f92672>.</span><span style=color:#f92672>.</span><span style=color:#f92672>.</span>
+<span style=color:#75715e># データ取得</span>
+<span style=color:#a6e22e>@app.route</span>(<span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>/api/v1/todos/&lt;key&gt;</span><span style=color:#e6db74>&#39;</span>, methods<span style=color:#f92672>=</span>[<span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>GET</span><span style=color:#e6db74>&#39;</span>])
+<span style=color:#66d9ef>def</span> <span style=color:#a6e22e>get</span>(key):
+    <span style=color:#66d9ef>try</span>:
+        response <span style=color:#f92672>=</span> requests<span style=color:#f92672>.</span>get(
+            state_url <span style=color:#f92672>+</span> <span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>/</span><span style=color:#e6db74>&#34;</span> <span style=color:#f92672>+</span> key
+            )
+        <span style=color:#66d9ef>return</span> jsonify(json<span style=color:#f92672>.</span>loads(response<span style=color:#f92672>.</span>text)), status<span style=color:#f92672>.</span>HTTP_200_OK
+    <span style=color:#66d9ef>except</span> <span style=color:#a6e22e>Exception</span> <span style=color:#66d9ef>as</span> e:
+        <span style=color:#66d9ef>return</span> { <span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>message</span><span style=color:#e6db74>&#34;</span>: <span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>Failed to get data</span><span style=color:#e6db74>&#34;</span> }, status<span style=color:#f92672>.</span>HTTP_500_INTERNAL_SERVER_ERROR
+<span style=color:#f92672>.</span><span style=color:#f92672>.</span><span style=color:#f92672>.</span>
+</code></pre></div><h2 id=サービスの呼び出しservice-invocation>サービスの呼び出し(Service Invocation)</h2><p>外部サービスの呼び出しはもっと簡単です。ヘッダーに <code>{ "dapr-app-id": "呼び出し先のサービスのDapr ID" }</code>をつけて呼び出し先をCallするだけです。</p><p>今回は、外部APIを呼び出すサービスを<code>schedule</code>として動かします。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>http://localhost:<span style=color:#f92672>{</span>Daprポート番号<span style=color:#f92672>}</span>/<span style=color:#f92672>{</span>呼び出し先のPath<span style=color:#f92672>}</span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>
+</span></code></pre></div><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-python data-lang=python><span style=color:#75715e># Schedule Service(Spring Boot)の呼び出し</span>
+schedule_url <span style=color:#f92672>=</span> <span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>http://localhost:{}/schedule</span><span style=color:#e6db74>&#34;</span><span style=color:#f92672>.</span>format(dapr_port)
+
+<span style=color:#75715e># スケジュール取得</span>
+<span style=color:#a6e22e>@app.route</span>(<span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>/api/v1/schedule</span><span style=color:#e6db74>&#39;</span>, methods<span style=color:#f92672>=</span>[<span style=color:#e6db74></span><span style=color:#e6db74>&#39;</span><span style=color:#e6db74>GET</span><span style=color:#e6db74>&#39;</span>])
+<span style=color:#66d9ef>def</span> <span style=color:#a6e22e>get_schedule</span>():
+    <span style=color:#66d9ef>try</span>:
+        response <span style=color:#f92672>=</span> requests<span style=color:#f92672>.</span>get(
+            schedule_url, 
+            headers <span style=color:#f92672>=</span> { <span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>dapr-app-id</span><span style=color:#e6db74>&#34;</span>: <span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>schedule</span><span style=color:#e6db74>&#34;</span> }
+            )
+        data <span style=color:#f92672>=</span> json<span style=color:#f92672>.</span>loads(response<span style=color:#f92672>.</span>text)
+<span style=color:#f92672>.</span><span style=color:#f92672>.</span><span style=color:#f92672>.</span>
+    <span style=color:#66d9ef>except</span> <span style=color:#a6e22e>Exception</span> <span style=color:#66d9ef>as</span> e:
+        <span style=color:#66d9ef>return</span> { <span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>message</span><span style=color:#e6db74>&#34;</span>: <span style=color:#e6db74></span><span style=color:#e6db74>&#34;</span><span style=color:#e6db74>Failed to get data</span><span style=color:#e6db74>&#34;</span> }, status<span style=color:#f92672>.</span>HTTP_500_INTERNAL_SERVER_ERROR
+<span style=color:#f92672>.</span><span style=color:#f92672>.</span><span style=color:#f92672>.</span>
+</code></pre></div><h2 id=アプリケーションの実行>アプリケーションの実行</h2><p>Daprアプリケーションはローカル環境でも動きますが、本番環境の場合はKubernetesで動かすのがなにかと便利です。</p><h3 id=kubernetesクラスタの作成>Kubernetesクラスタの作成</h3><p>Kubernetesクラスタを用意します。ハードウエアを購入して物理ネットワークを敷設してMaster/Worker Nodeをセットアップするときっと楽しいでしょう。ただ、時間もお金もかかるのでクラウドベンダーが提供するマネージドサービスを利用するのが便利です。</p><p>Azureの場合、<a href=https://docs.microsoft.com/ja-jp/azure/aks/learn/quick-kubernetes-deploy-cli>Azure Kubernetes Service</a>を利用しチュートリアル通りに従えば10分程度でKubernetsクラスタが構築できます。</p><h3 id=daprのセットアップ>Daprのセットアップ</h3><p>KubernetsクラスタにDaprのコンポーネントをデプロイします。手順は<a href=https://docs.dapr.io/operations/hosting/kubernetes/kubernetes-deploy/>公式サイト</a>にあるので特に迷う点はないはずです。</p><ul><li><p><a href=https://docs.dapr.io/operations/hosting/kubernetes/cluster/setup-aks/>Azure Kubernetes Serviceの手順</a></p></li><li><p><a href=https://docs.dapr.io/operations/hosting/kubernetes/cluster/setup-gke/>Google Kubernetes Engineの手順</a></p></li></ul><p>Daprをデプロイすると、<code>dapr-system</code>というnamespaceが作成され必要なリソースが動いているのが分かります。
+たとえば、<code>dapr-sidecar-injector</code>はDaprがEnableなアプリに対してサイドカーを動かすデプロイメントであることがわかります。また、DaprがOperetorとして動作しているのもわかります。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>$ k get ns
+NAME              STATUS   AGE
+dapr-system       Active   11d
+default           Active   17d
+kube-node-lease   Active   17d
+kube-public       Active   17d
+kube-system       Active   17d
+</code></pre></div><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>k get deploy,svc,statefulset -n dapr-system
+
+NAME                            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT<span style=color:#f92672>(</span>S<span style=color:#f92672>)</span>              AGE
+service/dapr-api                ClusterIP   10.0.232.2     &lt;none&gt;        80/TCP               11d
+service/dapr-dashboard          ClusterIP   10.0.214.75    &lt;none&gt;        8080/TCP             11d
+service/dapr-placement-server   ClusterIP   None           &lt;none&gt;        50005/TCP,8201/TCP   11d
+service/dapr-sentry             ClusterIP   10.0.140.191   &lt;none&gt;        80/TCP               11d
+service/dapr-sidecar-injector   ClusterIP   10.0.111.209   &lt;none&gt;        443/TCP              11d
+service/dapr-webhook            ClusterIP   10.0.2.156     &lt;none&gt;        443/TCP              11d
+
+NAME                                    READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/dapr-dashboard          1/1     <span style=color:#ae81ff>1</span>            <span style=color:#ae81ff>1</span>           11d
+deployment.apps/dapr-operator           1/1     <span style=color:#ae81ff>1</span>            <span style=color:#ae81ff>1</span>           11d
+deployment.apps/dapr-sentry             1/1     <span style=color:#ae81ff>1</span>            <span style=color:#ae81ff>1</span>           11d
+deployment.apps/dapr-sidecar-injector   1/1     <span style=color:#ae81ff>1</span>            <span style=color:#ae81ff>1</span>           11d
+
+NAME                                     READY   AGE
+statefulset.apps/dapr-placement-server   1/1     11d
+</code></pre></div><h3 id=cosmos-dbのstate-storeコンポーネントのデプロイ>Cosmos DBのState Storeコンポーネントのデプロイ</h3><p>上記で作成したCosmos DBのState Store(cosmos.yaml)をデプロイします。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>k apply -f path-to-manifest/cosmosdb.yaml
+</code></pre></div><p>次のコマンドでState Storeのコンポーネントを確認できます。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>k get component
+NAME       AGE
+cosmosdb   6h31m
+</code></pre></div><h3 id=アプリケーションのデプロイ>アプリケーションのデプロイ</h3><p>Daprアプリケーションも通常のKubernetesアプリケーションと同様マニフェストファイルを用意します。記述のしかたはほぼ一緒ですが、Daprアプリケーションを識別するためのアノテーションを設定します。必要な設定は次のとおりです。</p><table><thead><tr><th>annotations</th><th>value</th><th>説明</th></tr></thead><tbody><tr><td>dapr.io/enabled</td><td>true</td><td>Daprを有効にするかどうか</td></tr><tr><td>dapr.io/app-id</td><td>backend</td><td>Dapr ID(クラスタ内で一意になるように設定)</td></tr><tr><td>dapr.io/app-port</td><td>8080</td><td>ポート番号</td></tr><tr><td>dapr.io/config</td><td>featureconfig</td><td>Configファイルを読み込む</td></tr></tbody></table><p><code>dapr.io/config</code>アノテーションは、Daprでリトライ処理などを行うために必要な設定です(詳細は後述)</p><p>例えば、Backendアプリのマニフェストファイルはこのような感じになります。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-yaml data-lang=yaml><span style=color:#66d9ef>kind</span>: Deployment
+<span style=color:#66d9ef>apiVersion</span>: apps/v1
+<span style=color:#66d9ef>metadata</span>:
+  <span style=color:#66d9ef>name</span>: backend
+...
+<span style=color:#66d9ef>spec</span>:
+  ...
+  <span style=color:#66d9ef>template</span>:
+    <span style=color:#66d9ef>metadata</span>:
+    ...
+      <span style=color:#66d9ef>annotations</span>:
+        <span style=color:#66d9ef>dapr.io/enabled</span>: <span style=color:#e6db74>&#34;true&#34;</span>
+        <span style=color:#66d9ef>dapr.io/app-id</span>: <span style=color:#e6db74>&#34;backend&#34;</span>
+        <span style=color:#66d9ef>dapr.io/app-port</span>: <span style=color:#e6db74>&#34;8080&#34;</span>
+        <span style=color:#66d9ef>dapr.io/config</span>: <span style=color:#e6db74>&#34;featureconfig&#34;</span>
+    <span style=color:#66d9ef>spec</span>:
+      <span style=color:#66d9ef>containers</span>:
+</code></pre></div><p>次のコマンドを実行してアプリケーションをクラスタにデプロイします。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>k apply -f path-to-manifest/backend.yaml
+</code></pre></div><p>同様に、外部API呼び出し先の<code>shcedule</code>アプリケーションのマニフェストファイルも作成し、アプリケーションをクラスタにデプロイします。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-yaml data-lang=yaml><span style=color:#66d9ef>kind</span>: Deployment
+<span style=color:#66d9ef>apiVersion</span>: apps/v1
+<span style=color:#66d9ef>metadata</span>:
+  <span style=color:#66d9ef>name</span>: schedule
+...
+<span style=color:#66d9ef>spec</span>:
+  ...
+  <span style=color:#66d9ef>template</span>:
+    ...
+      <span style=color:#66d9ef>annotations</span>:
+        <span style=color:#66d9ef>dapr.io/enabled</span>: <span style=color:#e6db74>&#34;true&#34;</span>
+        <span style=color:#66d9ef>dapr.io/app-id</span>: <span style=color:#e6db74>&#34;schedule&#34;</span>
+        <span style=color:#66d9ef>dapr.io/app-port</span>: <span style=color:#e6db74>&#34;8083&#34;</span>
+        <span style=color:#66d9ef>dapr.io/config</span>: <span style=color:#e6db74>&#34;featureconfig&#34;</span>
+    <span style=color:#66d9ef>spec</span>:
+      <span style=color:#66d9ef>containers</span>:
+</code></pre></div><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>k apply -f path-to-manifest/schedule.yaml
+</code></pre></div><p>ついでにフロントエンドアプリもデプロイしておきましょう。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>k get po
+NAME                       READY   STATUS    RESTARTS   AGE
+backend-7989b84656-25hq4   2/2     Running   <span style=color:#ae81ff>0</span>          5h50m
+frontend-6c5f759f6-hn6pk   1/1     Running   <span style=color:#ae81ff>0</span>          5h44m
+schedule-dd66d67bc-7svvh   2/2     Running   <span style=color:#ae81ff>0</span>          5h50m
+</code></pre></div><p>Podを確認すると、DaprをEnableにした<code>backend</code>と<code>schedule</code>にはDaprのサイドカーである<code>daprd</code>がInjectされているのが分かります。そして、コマンド引数でDaprのポート番号はじめDapr Control Planeにアクセスするのに必要な情報がセットされているのがわかります。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>$ k describe po backend-7989b84656-25hq4
+Name:         backend-7989b84656-25hq4
+Namespace:    default
+...
+Annotations:  dapr.io/app-id: backend
+              dapr.io/app-port: <span style=color:#ae81ff>8080</span>
+              dapr.io/config: featureconfig
+              dapr.io/enabled: true
+Status:       Running
+...
+Containers:
+  backend:
+    Container ID:   containerd://
+ ...
+  daprd:
+    Container ID:  containerd://
+    Ports:         3500/TCP, 50001/TCP, 50002/TCP, 9090/TCP
+    Host Ports:    0/TCP, 0/TCP, 0/TCP, 0/TCP
+    Command:
+      /daprd
+    Args:
+      --mode
+      kubernetes
+      --dapr-http-port
+      <span style=color:#ae81ff>3500</span>
+      --dapr-grpc-port
+      <span style=color:#ae81ff>50001</span>
+      --dapr-internal-grpc-port
+      <span style=color:#ae81ff>50002</span>
+      --dapr-listen-addresses
+      <span style=color:#f92672>[</span>::1<span style=color:#f92672>]</span>,127.0.0.1
+      --dapr-public-port
+      <span style=color:#ae81ff>3501</span>
+      --app-port
+      <span style=color:#ae81ff>8080</span>
+      --app-id
+      backend
+      --control-plane-address
+      dapr-api.dapr-system.svc.cluster.local:80
+      --app-protocol
+      http
+      --placement-host-address
+      dapr-placement-server.dapr-system.svc.cluster.local:50005
+...
+</code></pre></div><h3 id=動作確認>動作確認</h3><p>ここまでの状態で、ブラウザから<code>frontend</code>アプリのService Endpointにアクセスすると約50%の割合で「スケジュールデータが取得できません」という悲しいエラーが出ます。</p><p><img src=../docs/images/error.png alt></p><p>なぜかというと、<code>backend</code>アプリからDapr経由で呼び出される<code>schedule</code>アプリは50%の確率で500エラーを返すようわざと実装しているためです。</p><p>いやいやいくらなんでも、2回に1回失敗するAPIとか現実世界では無いだろ、、、という気もしますが、クラウドサービスの多くはSLAが99.95%～99.9999%に設定されています。これは裏を返せば1000回リクエストを送ると5回ぐらいはエラーになる..かもね&mldr;ということを意味していて、一過性の障害が完全に無いと言い切れるものではありません。</p><h3 id=daprによるリトライサーキットブレーカー>Daprによるリトライ/サーキットブレーカー</h3><p>一過性の障害が発生したとしても、すこしまってリトライすれば業務影響を減らせるかもしれません。Daprには<a href=https://docs.dapr.io/operations/resiliency/resiliency-overview/>アプリケーションの回復性を持たせる機能</a>が提供されています。試してみましょう！</p><p>これを利用するには、<a href=https://docs.dapr.io/operations/support/support-preview-features/>Preview features</a>を有効にする必要があります。次の内容で<code>config.yaml</code>を作成して、Kubernetesクラスタにデプロイします。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-yaml data-lang=yaml><span style=color:#66d9ef>apiVersion</span>: dapr.io/v1alpha1
+<span style=color:#66d9ef>kind</span>: Configuration
+<span style=color:#66d9ef>metadata</span>:
+  <span style=color:#66d9ef>name</span>: featureconfig
+<span style=color:#66d9ef>spec</span>:
+  <span style=color:#66d9ef>features</span>:
+    - <span style=color:#66d9ef>name</span>: Resiliency
+      <span style=color:#66d9ef>enabled</span>: <span style=color:#66d9ef>true</span>
+</code></pre></div><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>k apply -f path-to-manifest/config.yaml
+</code></pre></div><p>そしてPreview featuresを有効にしたいDeploymentのアノテーションに<code>dapr.io/config</code>が設定されていることを確認します。<em>※:すでに設定済みです</em></p><p>次に、リトライやサーキットブレーカーのポリシー<code>resiliency.yaml</code>を定義します。分かりにくいところはコメントを入れましたが、ポイントとしては、Dapr IDごとにScopeを設定でき、どのスコープ(=Daprアプリ)に対して、どのようなポリシーを割り当てるかを設定できるところになります。
+Kubernets RBACの設定的なものをイメージしてもらえば理解しやすいと思います。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-yaml data-lang=yaml><span style=color:#66d9ef>apiVersion</span>: dapr.io/v1alpha1
+<span style=color:#66d9ef>kind</span>: Resiliency
+<span style=color:#66d9ef>metadata</span>:
+  <span style=color:#66d9ef>name</span>: todo-resiliency
+<span style=color:#75715e># Resiliency spec が使用できる Dapr App ID </span>
+<span style=color:#66d9ef>scopes</span>:
+  - schedule
+  - backend
+<span style=color:#66d9ef>spec</span>:
+  <span style=color:#75715e># policies は、タイムアウト、再試行、サーキットブレーカーポリシーを定義する場所</span>
+  <span style=color:#75715e># それぞれ名前がついており、resiliency-specのtargetsから参照できる</span>
+  <span style=color:#66d9ef>policies</span>:
+    <span style=color:#75715e># タイムアウトの設定</span>
+    <span style=color:#66d9ef>timeouts</span>:
+      <span style=color:#66d9ef>general</span>: 5s
+      <span style=color:#66d9ef>important</span>: 60s
+      <span style=color:#66d9ef>largeResponse</span>: 10s
+
+    <span style=color:#75715e># リトライの設定</span>
+    <span style=color:#66d9ef>retries</span>:
+      <span style=color:#66d9ef>pubsubRetry</span>:
+        <span style=color:#66d9ef>policy</span>: constant
+        <span style=color:#66d9ef>duration</span>: 5s
+        <span style=color:#66d9ef>maxRetries</span>: <span style=color:#ae81ff>10</span>
+
+      <span style=color:#66d9ef>retryForever</span>:
+        <span style=color:#66d9ef>policy</span>: exponential
+        <span style=color:#66d9ef>maxInterval</span>: 15s
+        <span style=color:#66d9ef>maxRetries</span>: -<span style=color:#ae81ff>1</span> <span style=color:#75715e># retry indefinitely</span>
+
+      <span style=color:#66d9ef>important</span>:
+        <span style=color:#66d9ef>policy</span>: constant
+        <span style=color:#66d9ef>duration</span>: 5s
+        <span style=color:#66d9ef>maxRetries</span>: <span style=color:#ae81ff>30</span>
+
+      <span style=color:#66d9ef>someOperation</span>:
+        <span style=color:#66d9ef>policy</span>: exponential
+        <span style=color:#66d9ef>maxInterval</span>: 15s
+
+      <span style=color:#66d9ef>largeResponse</span>:
+        <span style=color:#66d9ef>policy</span>: constant
+        <span style=color:#66d9ef>duration</span>: 5s
+        <span style=color:#66d9ef>maxRetries</span>: <span style=color:#ae81ff>3</span>
+        
+    <span style=color:#75715e># サーキットブレーカーの設定</span>
+    <span style=color:#75715e># サーキットブレーカーは、Daprサイドカーが動作している限り、カウンターを維持しますが永続化されません。</span>
+    <span style=color:#66d9ef>circuitBreakers</span>:
+      <span style=color:#66d9ef>simpleCB</span>:
+        <span style=color:#66d9ef>maxRequests</span>: <span style=color:#ae81ff>1</span>
+        <span style=color:#66d9ef>timeout</span>: 30s 
+        <span style=color:#66d9ef>trip</span>: consecutiveFailures &gt;= <span style=color:#ae81ff>5</span>
+
+      <span style=color:#66d9ef>pubsubCB</span>:
+        <span style=color:#66d9ef>maxRequests</span>: <span style=color:#ae81ff>1</span>
+        <span style=color:#66d9ef>interval</span>: 8s
+        <span style=color:#66d9ef>timeout</span>: 45s
+        <span style=color:#66d9ef>trip</span>: consecutiveFailures &gt; <span style=color:#ae81ff>8</span>
+
+  <span style=color:#75715e># Dapr はapps/components/actorsの3つのターゲットタイプをサポート</span>
+  <span style=color:#66d9ef>targets</span>:
+    <span style=color:#75715e># Dapr appsに対する設定</span>
+    <span style=color:#66d9ef>apps</span>:
+      <span style=color:#66d9ef>schedule</span>: <span style=color:#75715e># Dapr IDを設定</span>
+        <span style=color:#66d9ef>timeout</span>: general
+        <span style=color:#66d9ef>retry</span>: retryForever
+        <span style=color:#66d9ef>circuitBreaker</span>: simpleCB
+
+    <span style=color:#66d9ef>components</span>:
+      <span style=color:#75715e># Dapr Stateに対する設定</span>
+      <span style=color:#66d9ef>cosmosdb</span>: <span style=color:#75715e># StateStore名を設定</span>
+        <span style=color:#66d9ef>outbound</span>:
+          <span style=color:#66d9ef>timeout</span>: general
+          <span style=color:#66d9ef>retry</span>: retryForever
+</code></pre></div><p>ここでは、<code>schedule</code>に対して<code>retryForever</code>のルール、つまりExponential Backoffで無限にリトライを続け、サーキットブレーカーとして<code>simpleCB</code>のルール、つまりタイムアウト30sでサーキットブレイクさせるという設定を入れています。</p><p>同様にデータストアであるCosmos DBに対しては<code>retryForever</code>のルールで再送しています。</p><p>次のコマンドでマニフェストファイルをデプロイします。</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>k apply -f path-to-manifest/resiliency.yaml
+</code></pre></div><p>再度<code>frontend</code>にリクエストを複数回送ってみましょう。めでたしめでたしとなっているはずです。</p><p><img src=../docs/images/ok.png alt></p><p>これで、開発者の要望である</p><ul><li>永続データを透過的に管理したい</li><li>外部サービス呼び出し時にミドルウエア的な処理を入れたい</li></ul><p>はDaprによってある程度実現できることが分かりました。Daprをうまく活用することで、お客様の要件にあった「マルチクラウドでも動くアプリケーションが欲しい」「分散システムの一過性の障害でも業務を止めないシステムが欲しい」に一歩近づけることができるかもしれません。</p><h4 id=どう実装されている>(どう実装されている？)</h4><p>ここからは完全に余談ですが、どういうResiliencyが実装になっているのか少し気になったのでしらべてみたのですが、Golangで実装されている<a href=https://github.com/dapr/components-contrib/blob/master/state/azure/cosmosdb/cosmosdb.go>Dapr State Store/Cosmos DB</a>のExponential backoffは<a href=https://github.com/cenkalti/backoff>cenkalti/backoff/v4</a>が使われているようです。</p><p>また、Service Invokeについては、<a href=(https://github.com/dapr/dapr/blob/7c44c95cadfea3626224ae4c0f316f0556421c13/pkg/messaging/direct_messaging.go#L131)>invokeWithRetry</a>で実装されています。</p><p>Daprにかぎらずリトライ処理をミドルレイヤーで行うのは一長一短あるので、中でどういう動きをするのかをきちんと押さえておかないと、本番環境で障害が発生したときに大変な目にあうので要注意です。</p><h2 id=課題-azure-containe-appsでdaprをサポートがしかし>(課題) Azure Containe AppsでDaprをサポート！が、しかし&mldr;..</h2><p>2022のBuildで人類待望の「<a href=https://docs.microsoft.com/ja-jp/azure/container-apps/overview>Azure Containe Apps</a>」が一般提供されました。</p><p>Azure Containe Appsの大きな特徴として、</p><ul><li>Kubernetsをベースにしたコンテナのマネージドな実行環境</li><li>No opinionated programming model</li><li>KEDA/Envoy/Dapr/Virtual KubeletなどCNCFプロジェクトを多数取り込んでいる</li><li>GitHub Actons連携</li></ul><p>などがあげられます。なにより、Kubernets APIにアクセスしなくてもKubernets環境上でよしなにやってくれるというのは、多くの開発者にとっては嬉しいことです。</p><p>個人的には、<strong>Azureの新規案件でコンテナワークロードを動かすものに関しては、ほぼこれを選んでおけば大丈夫なのでは？</strong> と思っています。</p><p>このAzure Containe AppsはDaprをネイティブでサポートしていて、このようなコマンドを実行するだけでDaprサイドカーをInjectできます。便利！</p><div class=highlight><pre style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-bash data-lang=bash>az containerapp create <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>...
+  --enable-dapr <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>  --dapr-app-port <span style=color:#ae81ff>8080</span> <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>  --dapr-app-id backend 
+</code></pre></div><p>Azure Containe Appsすごく良い！！のですが、執筆時点(2022/06/28)でDaprまわりでいくつかできないことがあることが分かったのでまとめておきます。</p><h3 id=state-management-apiでquery-stateが使えない>State management APIでQuery stateが使えない</h3><p>State management APIの<a href=https://docs.dapr.io/reference/api/state_api/#query-state>Query state</a>は現在Alpha Stageであるため、リクエストURLを以下のように<code>v1.0-alpha1</code>にする必要があります。AKSにデプロイした場合はAlpha Stage APIでも利用できますが、これがContainer Appsでは動作しません。</p><pre><code>POST/PUT http://localhost:&lt;daprPort&gt;/v1.0-alpha1/state/&lt;storename&gt;/query
+</code></pre><p>これが利用できないと、たとえばCosmos DBでデータをクエリし必要な値をfilterして取り出せません。
+※ <a href=https://github.com/microsoft/azure-container-apps/issues/155>issue #155</a>でも議論されています。</p><h3 id=daprのpreview-featureが使えない>Daprのpreview featureが使えない</h3><p>普段日本語で公式ドキュメントを読んでいる弱者なので翻訳の違和感にまったく気づかず、かれこれ2日間ぐらいハマってしまったのですが、あらためて英語の原文のマニュアル<a href="https://docs.microsoft.com/en-us/azure/container-apps/dapr-overview?tabs=bicep1%2Cyaml#limitations">Unsupported Dapr capabilities</a>をきちんと読むと</p><blockquote><p>Dapr Configuration spec: Any capabilities that require use of the Dapr configuration spec.</p></blockquote><p>とあります。</p><p>本記事ではDaprのResiliencyについて紹介しましたが、このResiliencyはpreview featureのため、Dapr Configuration specを変更する必要があります。KubernetsでセルフホストでDaprをセットアップした場合はこの値を書き換えて構成することができますが、マネージドサービスであるAzure Containe Appsの場合はこれができません。</p><p>つまり、Container Appsでは現時点でリトライ処理やサーキットブレーカー始め、Daprのpreview featureを試せません。</p><h2 id=まとめ>まとめ</h2><ul><li><p>Daprを使うと回復性・耐障害性の高いシステムをアプリケーションレベルで実装できる可能性がある、というのが分かりました。</p></li><li><p>Daprにはいろいろな機能があって、ごく一部しか追いかけられていないですが、今後も大注目のテクノロジーです。</p></li></ul><p>つづく</p></div></main></body></html>
